@@ -60,6 +60,7 @@ Right-click the strip for the common ones, or edit `~/.claude/taskbar/taskbar.js
 | `doneWindowHours` | `24` | finished jobs older than this drop off (`0` keeps them until archived) |
 | `showUsage` | `true` | show the usage ring |
 | `position` | `"right"` | `"right"` = next to the tray, `"left"` = the taskbar's left edge (handy with centered icons) |
+| `usagePosition` | `"after"` | put the usage ring `"before"` or `"after"` the session dots |
 | `offsetX` | `0` | extra gap in pixels (at 100% scaling) from the chosen edge, e.g. to clear the Widgets button on the left |
 | `launchCommand` | `""` | what a click starts when no Claude window is found. Empty = [claude-launcher](https://github.com/lucaslobasso/claude-launcher) if installed, else `wt.exe claude agents` |
 | `focusAumid` | `"ClaudeLauncher.WindowsTerminal"` | AppUserModelID of the window a click brings to front |

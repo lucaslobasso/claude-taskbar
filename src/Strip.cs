@@ -97,7 +97,8 @@ static unsafe class Strip
             double? p5 = Usage.Current(Usage.FiveHour), p7 = Usage.Current(Usage.Weekly);
             double? p = p5 == null ? p7 : p7 == null ? p5 : Math.Max(p5.Value, p7.Value);
             uint col = p is >= 90 ? 0xE5534Bu : p is >= 70 ? 0xE8B04Bu : 0u;
-            items.Add(new Item(GaugeKind, p is { } v ? $"{Math.Round(v):0}%" : "–", col, Math.Clamp((p ?? 0) / 100.0, 0, 1)));
+            var ring = new Item(GaugeKind, p is { } v ? $"{Math.Round(v):0}%" : "–", col, Math.Clamp((p ?? 0) / 100.0, 0, 1));
+            if (Settings.UsageFirst) items.Insert(0, ring); else items.Add(ring); // "usagePosition": before/after the dots
         }
         return items;
     }
@@ -285,10 +286,13 @@ static unsafe class Strip
     static void Menu()
     {
         const int Open = 1, Refresh_ = 2, Notif = 10, Hide_ = 20, UsageOnly = 21, Show_ = 22, Gauge = 30, Auto = 40, Edit = 50,
-            PosLeft = 60, PosRight = 61, Exit = 99;
+            PosLeft = 60, PosRight = 61, UsageBefore = 62, UsageAfter = 63, Exit = 99;
         var pos = CreatePopupMenu();
         AppendMenuW(pos, Settings.Left ? MF_CHECKED : 0, PosLeft, "Left side of the taskbar");
         AppendMenuW(pos, Settings.Left ? 0 : MF_CHECKED, PosRight, "Next to the tray");
+        AppendMenuW(pos, MF_SEPARATOR, 0, null);
+        AppendMenuW(pos, Settings.UsageFirst ? MF_CHECKED : 0, UsageBefore, "Usage before sessions");
+        AppendMenuW(pos, Settings.UsageFirst ? 0 : MF_CHECKED, UsageAfter, "Usage after sessions");
         var m = CreatePopupMenu();
         var sub = CreatePopupMenu();
         AppendMenuW(sub, Settings.WhenClaudeClosed == ClosedMode.Hide ? MF_CHECKED : 0, Hide_, "Hide");
@@ -321,6 +325,8 @@ static unsafe class Strip
             case Show_: Settings.WhenClaudeClosed = ClosedMode.Show; Settings.Save(); Refresh(); break;
             case PosLeft: Settings.Left = true; Settings.Save(); Refresh(force: true); break;
             case PosRight: Settings.Left = false; Settings.Save(); Refresh(force: true); break;
+            case UsageBefore: Settings.UsageFirst = true; Settings.Save(); Refresh(force: true); break;
+            case UsageAfter: Settings.UsageFirst = false; Settings.Save(); Refresh(force: true); break;
             case Auto: Shell.Autostart = !Shell.Autostart; break;
             case Edit: Shell.OpenFile(Paths.SettingsFile); break;
             case Exit: DestroyWindow(Hwnd); break;
