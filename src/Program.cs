@@ -26,26 +26,28 @@ static unsafe class Program
         Strip.Create();
         Strip.Fullscreen = Strip.IsFullscreen();
         Strip.Refresh(force: true);
-        Log.Write($"start: hwnd={Strip.Hwnd} sessions={Sessions.Items.Count} running={Sessions.ClaudeRunning} usage={Usage.HasData} fullscreen={Strip.Fullscreen}");
+        Log.Write($"start: hwnd={Strip.Hwnd} sessions={Sessions.Items.Count} alive={Sessions.SessionsAlive} open={Sessions.ClaudeOpen} usage={Usage.HasData} fullscreen={Strip.Fullscreen}");
         ScheduleReset();
         UpdateSafetyTimer();
         ArmWatches();
         ScheduleTrim();
         if (Environment.GetEnvironmentVariable("CLAUDE_TASKBAR_DEBUG_TIP") is { Length: > 0 } tip) Strip.DebugTip(tip);
 
-        var handles = new nint[8];
+        var handles = new nint[64];
         while (true)
         {
-            int n = watches.Count;
-            for (int i = 0; i < n; i++) handles[i] = watches[i];
+            int w = watches.Count, n = w;
+            for (int i = 0; i < w; i++) handles[i] = watches[i];
+            foreach (var h in Sessions.ClientHandles) if (n < handles.Length) handles[n++] = h; // a Claude terminal exiting wakes us
             uint r;
             fixed (nint* hs = handles) r = MsgWaitForMultipleObjectsEx((uint)n, hs, INFINITE, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
 
-            if (r < (uint)n)
+            if (r < (uint)w)
             {
                 if (FindNextChangeNotification(handles[r]) == 0) ArmWatches(); // folder vanished: re-arm
                 SetTimer(Strip.Hwnd, T_DEBOUNCE, 300, 0);
             }
+            else if (r < (uint)n) Reload(force: true); // a client process exited: re-scan (drops its handle)
             else if (r == (uint)n)
             {
                 while (PeekMessageW(out var msg, 0, 0, 0, PM_REMOVE) != 0)
@@ -101,7 +103,7 @@ static unsafe class Program
     static void UpdateSafetyTimer()
     {
         // only while Claude runs: catches crashed sessions whose file stays behind, and tray moves we missed
-        if (Sessions.ClaudeRunning) SetTimer(Strip.Hwnd, T_SAFETY, SafetyMs, 0);
+        if (Sessions.SessionsAlive) SetTimer(Strip.Hwnd, T_SAFETY, SafetyMs, 0);
         else KillTimer(Strip.Hwnd, T_SAFETY);
     }
 

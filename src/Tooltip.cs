@@ -64,7 +64,7 @@ static unsafe class Tooltip
         if (showing is { } st)
         {
             var list = Sessions.Items.Where(s => s.Status == st).ToList();
-            lines.Add(new Line(Kind.Header, [$"{StatusInfo.Label(st)} ({list.Count})"], StatusInfo.Color(st)));
+            lines.Add(new Line(Kind.Header, [$"{StatusInfo.Label(st)} ({list.Count})"], StatusInfo.Color(st, Light)));
             foreach (var s in list.Take(8)) lines.Add(new Line(Kind.Row, [s.Name, Sessions.LastMessage(s)]));
             if (list.Count > 8) lines.Add(new Line(Kind.Note, [$"+{list.Count - 8} more"]));
             return;

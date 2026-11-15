@@ -62,7 +62,7 @@ static unsafe class Native
     public const uint PM_REMOVE = 1;
     public const uint FILE_NOTIFY_CHANGE_FILE_NAME = 0x1, FILE_NOTIFY_CHANGE_DIR_NAME = 0x2, FILE_NOTIFY_CHANGE_LAST_WRITE = 0x10;
     public const uint EVENT_SYSTEM_FOREGROUND = 0x3, EVENT_OBJECT_LOCATIONCHANGE = 0x800B, WINEVENT_OUTOFCONTEXT = 0;
-    public const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
+    public const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000, SYNCHRONIZE = 0x100000, TH32CS_SNAPPROCESS = 0x2;
     public const uint MF_STRING = 0, MF_SEPARATOR = 0x800, MF_CHECKED = 0x8, MF_POPUP = 0x10, MF_GRAYED = 0x1;
     public const uint TPM_RETURNCMD = 0x100, TPM_RIGHTBUTTON = 0x2, TPM_BOTTOMALIGN = 0x20;
     public const uint DT_SINGLELINE = 0x20, DT_END_ELLIPSIS = 0x8000, DT_NOPREFIX = 0x800, DT_VCENTER = 0x4, DT_LEFT = 0, DT_CALCRECT = 0x400;
@@ -147,6 +147,18 @@ static unsafe class Native
     [DllImport("ole32.dll", ExactSpelling = true)] public static extern int CoInitializeEx(nint reserved, uint coinit);
 
     // kernel32
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    public unsafe struct PROCESSENTRY32W
+    {
+        public uint dwSize, cntUsage, th32ProcessID; public nuint th32DefaultHeapID; public uint th32ModuleID, cntThreads, th32ParentProcessID;
+        public int pcPriClassBase; public uint dwFlags;
+        public fixed char szExeFile[260];
+        public string ExeName() { fixed (char* p = szExeFile) return new string(p); }
+    }
+    [DllImport("kernel32.dll", ExactSpelling = true)] public static extern nint CreateToolhelp32Snapshot(uint flags, uint pid);
+    [DllImport("kernel32.dll", ExactSpelling = true)] public static extern bool Process32FirstW(nint snap, ref PROCESSENTRY32W e);
+    [DllImport("kernel32.dll", ExactSpelling = true)] public static extern bool Process32NextW(nint snap, ref PROCESSENTRY32W e);
+    [DllImport("ntdll.dll", ExactSpelling = true)] static extern int NtQueryInformationProcess(nint h, int cls, void* buf, uint len, out uint ret);
     [DllImport("kernel32.dll", ExactSpelling = true, CharSet = CharSet.Unicode)] public static extern nint FindFirstChangeNotificationW(string path, int subtree, uint filter);
     [DllImport("kernel32.dll", ExactSpelling = true)] public static extern int FindNextChangeNotification(nint h);
     [DllImport("kernel32.dll", ExactSpelling = true)] public static extern int FindCloseChangeNotification(nint h);
@@ -171,6 +183,23 @@ static unsafe class Native
     [DllImport("advapi32.dll", ExactSpelling = true, CharSet = CharSet.Unicode)] public static extern int RegGetValueW(nint key, string sub, string? value, uint flags, out uint type, void* data, ref uint size);
     [DllImport("advapi32.dll", ExactSpelling = true, CharSet = CharSet.Unicode)] public static extern int RegSetKeyValueW(nint key, string sub, string value, uint type, string data, uint size);
     [DllImport("advapi32.dll", ExactSpelling = true, CharSet = CharSet.Unicode)] public static extern int RegDeleteKeyValueW(nint key, string sub, string value);
+
+    /// <summary>Command line of a process (empty if it cannot be read). Needs only PROCESS_QUERY_LIMITED_INFORMATION.</summary>
+    public static string CommandLine(uint pid)
+    {
+        var h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+        if (h == 0) return "";
+        try
+        {
+            byte* buf = stackalloc byte[4096];
+            // ProcessCommandLineInformation (60): a UNICODE_STRING (len, maxLen, pointer) followed by its characters
+            if (NtQueryInformationProcess(h, 60, buf, 4096, out _) < 0) return "";
+            ushort bytes = *(ushort*)buf;
+            char* chars = *(char**)(buf + 8);
+            return new string(chars, 0, bytes / 2);
+        }
+        finally { CloseHandle(h); }
+    }
 
     public static uint Rgb(int r, int g, int b) => (uint)(r | (g << 8) | (b << 16)); // COLORREF
 

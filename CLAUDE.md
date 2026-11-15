@@ -20,3 +20,8 @@ threads, no UI frameworks, no reflection-based JSON. Never add network calls (ze
 - The strip must be WS_EX_TOPMOST *and* owned by `Shell_TrayWnd`; setting the owner after creation does not make it
   topmost, and without topmost the taskbar draws over it.
 - In PowerShell, pass `[NullString]::Value` (not `$null`) for FindWindow's title, or it searches for an empty title.
+- P/Invoke structs holding `fixed char` buffers (e.g. `PROCESSENTRY32W`) need `CharSet = CharSet.Unicode`, or the default
+  ANSI marshalling reads 1-char names.
+- "Claude is open" (`Sessions.ClaudeOpen`) = a client process (claude.exe not parented by claude.exe and not the daemon)
+  exists, or an interactive session file, or a session is working/waiting. Every `bg` session belongs to the daemon,
+  which outlives the terminals, so session files alone never say "closed".

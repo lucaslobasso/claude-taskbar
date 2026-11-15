@@ -4,23 +4,30 @@
 ![Windows 11](https://img.shields.io/badge/Windows-11-0078d4.svg)
 ![Native AOT](https://img.shields.io/badge/.NET-Native%20AOT-512bd4.svg)
 
-A tiny strip in the Windows 11 taskbar that shows your [Claude Code](https://claude.com/claude-code) sessions at a glance: one colored dot and a count per status, and a ring with your usage limits. Hover for details, click to open Claude.
+A tiny strip in the Windows 11 taskbar that shows your [Claude Code](https://claude.com/claude-code) sessions at a glance: one colored dot per status with the count inside it, and a ring with your usage limits. Hover for details, click to open Claude.
 
-![The strip on the left of the taskbar: two working, one needing input, one done, one failed, usage at 78%, with the Working tooltip open](docs/strip.png)
+On the right, next to the tray (usage sits at the right edge, statuses run right to left):
 
-- **Statuses:** a dot and a count for each status that has sessions (statuses with no sessions are hidden), so the strip grows only as needed.
+![The strip next to the tray: usage 78%, then needs input, plan ready, failed, working, done and idle](docs/strip-right.png)
+
+On the left, mirrored (usage at the left edge, statuses run left to right):
+
+![The strip on the left of the taskbar, the same items mirrored](docs/strip-left.png)
+
+- **Statuses:** a colored dot with the session count inside it for each status that has sessions (statuses with no sessions are hidden), so the strip grows only as needed. They are ordered from the edge the strip is anchored to (the right edge, or the left one with `position: "left"`), after the usage ring:
 
   | Dot | Status | Meaning |
   |---|---|---|
-  | 🟠 | Working | a session is busy |
-  | 🟡 | Needs input | waiting for you (a question or a permission) |
-  | 🟢 | Done | a background job finished |
+  | 🟠 | Needs input | waiting for you (a question or a permission) |
+  | 🟣 | Plan ready | a session finished a plan and waits for your approval |
   | 🔴 | Failed | a background job failed |
-  | ⚪ | Idle | a session is open, doing nothing |
+  | 🔵 | Working | a session is busy |
+  | 🟢 | Done | a background job finished |
+  | ⚪/⚫ | Idle | a session is open, doing nothing (white on a dark taskbar, black on a light one) |
 
 - **Tooltips:** hover a dot to see each session's name and a shortened last message. Hover the ring for 5-hour and weekly usage, with live countdowns to each reset.
 - **Usage ring:** shows the limit that is closest to full. It turns amber at 70% and red at 90%.
-- **Notifications** (optional): a Windows toast when a session needs input, finishes or fails. Click it to open Claude.
+- **Notifications** (optional): a Windows toast when a session needs input, has a plan ready, finishes or fails. Click it to open Claude.
 - **Click** the strip to focus your Claude window (or start Claude). **Right-click** for options.
 
 ## Light by design
@@ -55,21 +62,20 @@ Right-click the strip for the common ones, or edit `~/.claude/taskbar/taskbar.js
 
 | Key | Default | |
 |---|---|---|
-| `whenClaudeClosed` | `"hide"` | `"hide"` the strip, show `"usageOnly"` (the ring, with countdowns that keep running), or `"show"` everything |
+| `whenClaudeClosed` | `"hide"` | what to do when Claude is closed: `"hide"` the strip, show `"usageOnly"` (the ring, with countdowns that keep running), or `"show"` everything. *Closed* means no Claude terminal or agent view is open **and** no session is working or waiting: background jobs that are still running keep the dots up, and the strip drops to this mode once they finish |
 | `notifications` | `true` | toast when a session changes status |
-| `notifyOn` | `["needsInput","done","failed"]` | which new statuses trigger a toast (`working`, `idle` too, if you like noise) |
+| `notifyOn` | `["needsInput","planReady","done","failed"]` | which new statuses trigger a toast (`working`, `idle` too, if you like noise) |
 | `hiddenStatuses` | `[]` | statuses to leave out of the strip |
 | `doneWindowHours` | `24` | finished jobs older than this drop off (`0` keeps them until archived) |
 | `showUsage` | `true` | show the usage ring |
-| `position` | `"right"` | `"right"` = next to the tray, `"left"` = the taskbar's left edge (handy with centered icons) |
-| `usagePosition` | `"after"` | put the usage ring `"before"` or `"after"` the session dots |
+| `position` | `"right"` | `"right"` = next to the tray, `"left"` = the taskbar's left edge (handy with centered icons). The whole strip mirrors: usage always sits at the anchored edge |
 | `offsetX` | `0` | extra gap in pixels (at 100% scaling) from the chosen edge, e.g. to clear the Widgets button on the left |
 | `launchCommand` | `""` | what a click starts when no Claude window is found. Empty = [claude-launcher](https://github.com/lucaslobasso/claude-launcher) if installed, else `wt.exe claude agents` |
 | `focusAumid` | `"ClaudeLauncher.WindowsTerminal"` | AppUserModelID of the window a click brings to front |
 
 ## How it works
 
-- Sessions come from `~/.claude/sessions/<pid>.json` (live processes and their `busy`/`waiting`/`idle` status) merged with `~/.claude/jobs/<id>/state.json` (background job state and its one-line summary). A session counts as live only if its process exists **and** started at the recorded time, so a reused PID can't fool it.
+- Sessions come from `~/.claude/sessions/<pid>.json` (live processes and their `busy`/`waiting`/`idle` status) merged with `~/.claude/jobs/<id>/state.json` (background job state and its one-line summary; a blocked job whose detail is "approve plan" is shown as Plan ready). Whether Claude is "open" is decided by looking for Claude terminal processes (the daemon and its background sessions do not count) and is re-checked only when a watched folder changes, the foreground window changes while closed, or a terminal exits. A session counts as live only if its process exists **and** started at the recorded time, so a reused PID can't fool it.
 - The strip is a per-pixel-alpha layered window owned by the taskbar, so it stays drawn above it. It follows the tray's size, DPI and light/dark changes, and re-docks if Explorer restarts.
 - Notifications use the shell's notification API. A tray icon exists only while a toast is up.
 

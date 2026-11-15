@@ -23,13 +23,12 @@ static class Settings
 {
     public static ClosedMode WhenClaudeClosed = ClosedMode.Hide;
     public static bool Notifications = true;
-    public static HashSet<Status> NotifyOn = [Status.NeedsInput, Status.Done, Status.Failed];
+    public static HashSet<Status> NotifyOn = [Status.NeedsInput, Status.PlanReady, Status.Done, Status.Failed];
     public static HashSet<Status> Hidden = [];
     public static int DoneWindowHours = 24;
     public static bool ShowUsage = true;
     public static int OffsetX;      // px at 100% scaling, measured from the chosen edge
     public static bool Left;        // "position": "left" (taskbar's left edge) or "right" (next to the tray, default)
-    public static bool UsageFirst;  // "usagePosition": "before" or "after" (default) the session dots
     public static string LaunchCommand = "";   // empty = Claude launcher if installed, else Windows Terminal running `claude agents`
     public static string FocusAumid = "ClaudeLauncher.WindowsTerminal";
 
@@ -48,13 +47,12 @@ static class Settings
             var r = doc.RootElement;
             WhenClaudeClosed = Str(r, "whenClaudeClosed") switch { "usageOnly" => ClosedMode.UsageOnly, "show" => ClosedMode.Show, _ => ClosedMode.Hide };
             Notifications = Bool(r, "notifications", true);
-            NotifyOn = StatusSet(r, "notifyOn") ?? [Status.NeedsInput, Status.Done, Status.Failed];
+            NotifyOn = StatusSet(r, "notifyOn") ?? [Status.NeedsInput, Status.PlanReady, Status.Done, Status.Failed];
             Hidden = StatusSet(r, "hiddenStatuses") ?? [];
             DoneWindowHours = Int(r, "doneWindowHours", 24);
             ShowUsage = Bool(r, "showUsage", true);
             OffsetX = Int(r, "offsetX", 0);
             Left = Str(r, "position") == "left";
-            UsageFirst = Str(r, "usagePosition") == "before";
             LaunchCommand = Str(r, "launchCommand") ?? "";
             FocusAumid = Str(r, "focusAumid") ?? "ClaudeLauncher.WindowsTerminal";
             return true;
@@ -78,7 +76,6 @@ static class Settings
                 w.WriteNumber("doneWindowHours", DoneWindowHours);
                 w.WriteBoolean("showUsage", ShowUsage);
                 w.WriteString("position", Left ? "left" : "right");
-                w.WriteString("usagePosition", UsageFirst ? "before" : "after");
                 w.WriteNumber("offsetX", OffsetX);
                 w.WriteString("launchCommand", LaunchCommand);
                 w.WriteString("focusAumid", FocusAumid);
