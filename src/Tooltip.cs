@@ -83,7 +83,7 @@ static unsafe class Tooltip
     static void AddWindow(string label, Usage.Window w)
     {
         if (w.Pct == null) return;
-        if (Usage.Current(w) is { } p) lines.Add(new Line(Kind.Row, [label, $"{p:0}%", w.Reset is { } r ? $"resets in {Usage.Countdown(r)}" : ""]));
+        if (Usage.Current(w) is { } p) lines.Add(new Line(Kind.Row, [label, $"{p:0}%", w.Reset is { } r ? Usage.Countdown(r) : ""]));
         else lines.Add(new Line(Kind.Row, [label, "–", "reset · waiting for fresh data"]));
     }
 
