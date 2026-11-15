@@ -43,6 +43,10 @@ function Install-UsagePlugin([string]$Marketplace = $TaskbarRepo) {
     $installed = @(claude plugin list --json 2>$null | ConvertFrom-Json) | Where-Object id -EQ $UsagePluginId
     if ($installed) { claude plugin update $UsagePluginId 2>&1 | Out-Host }
     else { claude plugin install $UsagePluginId --scope user 2>&1 | Out-Host }
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "The usage plugin didn't install; the strip works without the usage bars. Try: claude plugin install $UsagePluginId --scope user"
+        return
+    }
     Write-Host 'Usage plugin installed (loads in new Claude Code sessions).' -ForegroundColor Green
 }
 
