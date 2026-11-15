@@ -4,27 +4,36 @@ using System.Text;
 
 namespace ClaudeTaskbar;
 
-enum Status { Working, NeedsInput, Done, Failed, Idle } // display order
+enum Status { NeedsInput, PlanReady, Failed, Working, Done, Idle } // display order, starting at the strip's anchored edge
 
 static class StatusInfo
 {
     public static string Label(Status s) => s switch
     {
-        Status.Working => "Working", Status.NeedsInput => "Needs input", Status.Done => "Done", Status.Failed => "Failed", _ => "Idle",
+        Status.NeedsInput => "Needs input", Status.PlanReady => "Plan ready", Status.Failed => "Failed", Status.Working => "Working",
+        Status.Done => "Done", _ => "Idle",
     };
     public static string Key(Status s) => s switch
     {
-        Status.Working => "working", Status.NeedsInput => "needsInput", Status.Done => "done", Status.Failed => "failed", _ => "idle",
+        Status.NeedsInput => "needsInput", Status.PlanReady => "planReady", Status.Failed => "failed", Status.Working => "working",
+        Status.Done => "done", _ => "idle",
     };
     public static Status? FromKey(string k) => k switch
     {
-        "working" => Status.Working, "needsInput" => Status.NeedsInput, "done" => Status.Done, "failed" => Status.Failed, "idle" => Status.Idle, _ => null,
+        "needsInput" => Status.NeedsInput, "planReady" => Status.PlanReady, "failed" => Status.Failed, "working" => Status.Working,
+        "done" => Status.Done, "idle" => Status.Idle, _ => null,
     };
-    // 0xRRGGBB
-    public static uint Color(Status s) => s switch
+    // 0xRRGGBB. Idle follows the theme: a light disc on a dark taskbar, a dark one on a light taskbar.
+    public static uint Color(Status s, bool light) => s switch
     {
-        Status.Working => 0xD97757, Status.NeedsInput => 0xE8B04B, Status.Done => 0x5FB95F, Status.Failed => 0xE5534B, _ => 0x8A8A8A,
+        Status.NeedsInput => 0xF0883E, Status.PlanReady => 0xA371F7, Status.Failed => 0xE5534B, Status.Working => 0x4C8DF6,
+        Status.Done => 0x4FAE5A, _ => light ? 0x1A1A1Au : 0xF2F2F2u,
     };
+    /// <summary>Color of the count drawn inside the dot.</summary>
+    public static uint TextColor(Status s, bool light) => s == Status.Idle && !light ? 0x1A1A1Au : 0xFFFFFFu;
+
+    /// <summary>A blocked job waiting on ExitPlanMode: Claude Code writes "approve plan" as its detail/needs.</summary>
+    public static bool IsPlanApproval(string? s) => s != null && s.StartsWith("approve plan", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Maps a job state string. Claude Code uses working/done today; the rest is matched loosely.</summary>
     public static Status? FromJobState(string? s)
@@ -44,7 +53,7 @@ sealed class Session
 {
     public required string Key;
     public string Name = "";
-    public Status Status;
+    public Status Status = Status.Idle;
     public string Detail = "";
     public string? JobDir;
 }
@@ -54,10 +63,14 @@ readonly record struct Change(string Name, Status To, string Detail);
 static class Sessions
 {
     public static List<Session> Items = [];
-    /// <summary>True while any Claude session process is alive (spare/pre-warmed ones included).</summary>
-    public static bool ClaudeRunning;
+    /// <summary>True while any Claude session process is alive (daemon-owned and spare/pre-warmed ones included).</summary>
+    public static bool SessionsAlive;
+    /// <summary>True while Claude counts as open: see Scan. Drives the "when Claude is closed" setting.</summary>
+    public static bool ClaudeOpen;
+    /// <summary>Waitable handles of the Claude client processes (terminals, agent view); a signal means one exited.</summary>
+    public static readonly List<nint> ClientHandles = [];
 
-    sealed class Job { public DateTime Stamp; public string? State, Name, Detail, SessionId; public DateTimeOffset Updated; }
+    sealed class Job { public DateTime Stamp; public string? State, Name, Detail, Needs, SessionId; public DateTimeOffset Updated; }
     static readonly Dictionary<string, Job> jobCache = [];
     static Dictionary<string, Status>? last; // previous statuses, null before the first scan
 
@@ -65,7 +78,7 @@ static class Sessions
     public static bool Scan(List<Change> changes)
     {
         var items = new Dictionary<string, Session>();
-        bool running = false;
+        bool running = false, interactive = false;
 
         // 1. jobs with a state.json (folders without one have been archived)
         var seenJobs = new HashSet<string>();
@@ -89,7 +102,7 @@ static class Sessions
                             var r = doc.RootElement;
                             job = new Job
                             {
-                                Stamp = t, State = Json.Str(r, "state"), Name = Json.Str(r, "name"), Detail = Json.Str(r, "detail"),
+                                Stamp = t, State = Json.Str(r, "state"), Name = Json.Str(r, "name"), Detail = Json.Str(r, "detail"), Needs = Json.Str(r, "needs"),
                                 SessionId = Json.Str(r, "sessionId"),
                                 Updated = DateTimeOffset.TryParse(Json.Str(r, "updatedAt"), out var u) ? u : new DateTimeOffset(t),
                             };
@@ -101,6 +114,8 @@ static class Sessions
                         Key = id, JobDir = dir, Name = job!.Name ?? id, Detail = Json.Short(job.Detail, 140),
                         Status = StatusInfo.FromJobState(job.State) ?? Status.Idle,
                     };
+                    if (items[id].Status == Status.NeedsInput && (StatusInfo.IsPlanApproval(job.Needs) || StatusInfo.IsPlanApproval(job.Detail)))
+                        items[id].Status = Status.PlanReady;
                 }
         }
         catch { }
@@ -118,6 +133,7 @@ static class Sessions
                     if (!IsAlive(Json.Num(r, "pid"), Json.Str(r, "procStart"))) continue;
                     running = true;
                     if (Json.True(r, "spare")) continue;
+                    if (Json.Str(r, "kind") is not "bg") interactive = true; // a session in a terminal of its own, not a daemon-owned background one
 
                     var key = Json.Str(r, "jobId") ?? Json.Str(r, "sessionId") ?? Path.GetFileNameWithoutExtension(file);
                     if (!items.TryGetValue(key, out var s))
@@ -129,8 +145,8 @@ static class Sessions
                     s.Status = Json.Str(r, "status") switch
                     {
                         "busy" => Status.Working,
-                        "waiting" => Status.NeedsInput,
-                        _ => s.Status is Status.Done or Status.Failed or Status.NeedsInput ? s.Status : Status.Idle, // idle: keep a finished job's result
+                        "waiting" => s.Status == Status.PlanReady ? Status.PlanReady : Status.NeedsInput,
+                        _ => s.Status is Status.Done or Status.Failed or Status.NeedsInput or Status.PlanReady ? s.Status : Status.Idle, // idle: keep a finished job's result
                     };
                     // what it waits on: a specific reason beats the job's progress line; the generic one only fills a gap
                     if (s.Status == Status.NeedsInput && Json.Str(r, "waitingFor") is { Length: > 0 } wf &&
@@ -147,7 +163,7 @@ static class Sessions
         foreach (var (key, s) in items.ToList())
         {
             if (live.Contains(s)) continue;
-            if (s.Status is Status.Working or Status.NeedsInput) s.Status = Status.Idle;
+            if (s.Status is Status.Working or Status.NeedsInput or Status.PlanReady) s.Status = Status.Idle;
             if (jobCache.TryGetValue(key, out var j) && j.Updated < cutoff) items.Remove(key);
             else if (s.Status == Status.Idle) items.Remove(key); // not running and no result to show
         }
@@ -163,15 +179,61 @@ static class Sessions
                     changes.Add(new Change(s.Name, s.Status, s.Detail));
         last = now;
 
-        bool changed = running != ClaudeRunning || list.Count != Items.Count ||
+        // "open" = a terminal/agent view is up, or something still needs attention or is running (background jobs
+        // outlive their terminals). Finished/idle results alone do not keep the strip in its open state.
+        bool clients = RefreshClients(); // always: it also drops the handles of exited clients
+        bool open = clients || interactive || list.Any(s => s.Status is Status.Working or Status.NeedsInput or Status.PlanReady);
+        bool changed = running != SessionsAlive || open != ClaudeOpen || list.Count != Items.Count ||
                        list.Zip(Items).Any(p => p.First.Key != p.Second.Key || p.First.Status != p.Second.Status ||
                                                 p.First.Name != p.Second.Name || p.First.Detail != p.Second.Detail);
         Items = list;
-        ClaudeRunning = running;
+        SessionsAlive = running;
+        ClaudeOpen = open;
         return changed;
     }
 
     static readonly HashSet<Session> live = [];
+    static readonly HashSet<uint> clientPids = [];
+
+    /// <summary>
+    /// Finds Claude client processes: claude.exe whose parent is not claude.exe (daemon, its pty hosts and the
+    /// sessions they own all have one) and that is not itself the daemon. Keeps a SYNCHRONIZE handle per client so
+    /// the main loop wakes when one exits. Returns true if any client exists. Cheap: one process snapshot.
+    /// </summary>
+    public static bool RefreshClients()
+    {
+        var snap = Native.CreateToolhelp32Snapshot(Native.TH32CS_SNAPPROCESS, 0);
+        if (snap == -1 || snap == 0) return ClientHandles.Count > 0;
+        var claude = new List<(uint pid, uint parent)>();
+        var claudePids = new HashSet<uint>();
+        try
+        {
+            var e = new Native.PROCESSENTRY32W { dwSize = (uint)System.Runtime.CompilerServices.Unsafe.SizeOf<Native.PROCESSENTRY32W>() };
+            for (bool ok = Native.Process32FirstW(snap, ref e); ok; ok = Native.Process32NextW(snap, ref e))
+            {
+                if (e.ExeName().Equals("claude.exe", StringComparison.OrdinalIgnoreCase)) { claude.Add((e.th32ProcessID, e.th32ParentProcessID)); claudePids.Add(e.th32ProcessID); }
+            }
+        }
+        finally { Native.CloseHandle(snap); }
+
+        var found = new HashSet<uint>();
+        foreach (var (pid, parent) in claude)
+            if (!claudePids.Contains(parent) && !Native.CommandLine(pid).Contains("daemon", StringComparison.Ordinal)) found.Add(pid);
+
+        if (!found.SetEquals(clientPids))
+        {
+            foreach (var h in ClientHandles) Native.CloseHandle(h);
+            ClientHandles.Clear(); clientPids.Clear();
+            foreach (var pid in found.Take(32))
+            {
+                var h = Native.OpenProcess(Native.SYNCHRONIZE, 0, pid);
+                if (h == 0) continue;
+                ClientHandles.Add(h); clientPids.Add(pid);
+            }
+        }
+        if (Log.Debug) Log.Write($"clients: claude.exe={claude.Count} found={found.Count} handles={clientPids.Count}");
+        return clientPids.Count > 0;
+    }
 
     /// <summary>pid alive and started at procStart (FILETIME ticks), so a recycled pid does not count.</summary>
     static bool IsAlive(double? pid, string? procStart)

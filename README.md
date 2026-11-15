@@ -4,23 +4,30 @@
 ![Windows 11](https://img.shields.io/badge/Windows-11-0078d4.svg)
 ![Native AOT](https://img.shields.io/badge/.NET-Native%20AOT-512bd4.svg)
 
-A tiny strip in the Windows 11 taskbar that shows your [Claude Code](https://claude.com/claude-code) sessions at a glance: one colored dot and a count per status, and a ring with your usage limits. Hover for details, click to open Claude.
+A tiny strip in the Windows 11 taskbar that shows your [Claude Code](https://claude.com/claude-code) sessions at a glance: one colored dot per status with the count inside it, and two bars with your usage limits. Hover for details, click to open Claude.
 
-![The strip on the left of the taskbar: two working, one needing input, one done, one failed, usage at 78%, with the Working tooltip open](docs/strip.png)
+On the right, next to the tray (usage bars at the right edge, then statuses running right to left):
 
-- **Statuses:** a dot and a count for each status that has sessions (statuses with no sessions are hidden), so the strip grows only as needed.
+![The strip next to the tray: two usage bars, then idle, done, working, failed, plan ready and needs input](docs/strip-right.png)
+
+On the left, mirrored (usage bars at the left edge, then statuses running left to right):
+
+![The strip on the left of the taskbar, the same items mirrored](docs/strip-left.png)
+
+- **Statuses:** a colored dot with the session count inside it for each status that has sessions (statuses with no sessions are hidden), so the strip grows only as needed. Starting at the edge the strip is anchored to (the right edge, or the left one with `position: "left"`) come the weekly and 5-hour usage bars, then the statuses in this order:
 
   | Dot | Status | Meaning |
   |---|---|---|
-  | 🟠 | Working | a session is busy |
-  | 🟡 | Needs input | waiting for you (a question or a permission) |
+  | ⚪/⚫ | Idle | a session is open, doing nothing (white on a dark taskbar, black on a light one) |
   | 🟢 | Done | a background job finished |
+  | 🔵 | Working | a session is busy |
   | 🔴 | Failed | a background job failed |
-  | ⚪ | Idle | a session is open, doing nothing |
+  | 🟣 | Plan ready | a session finished a plan and waits for your approval |
+  | 🟠 | Needs input | waiting for you (a question or a permission) |
 
-- **Tooltips:** hover a dot to see each session's name and a shortened last message. Hover the ring for 5-hour and weekly usage, with live countdowns to each reset.
-- **Usage ring:** shows the limit that is closest to full. It turns amber at 70% and red at 90%.
-- **Notifications** (optional): a Windows toast when a session needs input, finishes or fails. Click it to open Claude.
+- **Tooltips:** hover a dot to see each session's name and a shortened last message. Hover a usage bar for 5-hour and weekly usage, with live countdowns to each reset.
+- **Usage bars:** two thin vertical bars as tall as the status dots, filling from the bottom: the weekly limit at the anchored edge and the 5-hour limit next to the statuses. Each has its percentage next to it (turn the percentages off with `showUsagePercent`). A bar turns amber at 70% and red at 90%.
+- **Notifications** (optional): a Windows toast when a session needs input, has a plan ready, finishes or fails. Click it to open Claude.
 - **Click** the strip to focus your Claude window (or start Claude). **Right-click** for options.
 
 ## Light by design
@@ -43,11 +50,11 @@ cd claude-taskbar
 
 ### Usage data
 
-Claude Code gives the rate-limit numbers only to the **status line**, so the strip reads a small snapshot that your status line writes. Add [`statusline/usage-snapshot.mjs`](statusline/usage-snapshot.mjs) to your status line script and call `snapshotUsage(input)` with the parsed status JSON. It writes `~/.claude/taskbar/usage.json` only when that folder exists.
+The strip reads `~/.claude/taskbar/usage.json`, which a small Claude Code plugin ([`mod/`](mod), `taskbar-usage`) writes. `install.ps1` installs it at user scope (`.\install.ps1 -ModOnly` installs just the plugin). It works with any status line, or none, and costs no tokens or network: it uses the rate limits Claude Code already has, via the `session.measure` hook, which only fires when a window moves a whole point. It writes only when the taskbar folder exists.
 
-Every open session runs the status line, but each one reports the numbers from its own last request, so idle sessions carry old, lower numbers. Usage within a window only goes up, so the snippet merges readings instead of overwriting them: the newest window wins, and within a window the highest percentage wins. It writes only when that result changes.
+Every open session reports the numbers from its own last request, so idle sessions carry old, lower numbers. Usage within a window only goes up, so the plugin merges readings instead of overwriting them: the newest window wins, and within a window the highest percentage wins. It writes only when that result changes.
 
-The snapshot refreshes while an interactive Claude Code session shows its status line. The countdowns stay exact anyway, because they are computed from the stored reset times. After a reset, the ring shows "–" until fresh data arrives.
+The snapshot refreshes while a Claude Code session is working. The countdowns stay exact anyway, because they are computed from the stored reset times. After a reset, the ring shows "–" until fresh data arrives.
 
 ## Settings
 
@@ -55,28 +62,28 @@ Right-click the strip for the common ones, or edit `~/.claude/taskbar/taskbar.js
 
 | Key | Default | |
 |---|---|---|
-| `whenClaudeClosed` | `"hide"` | `"hide"` the strip, show `"usageOnly"` (the ring, with countdowns that keep running), or `"show"` everything |
+| `whenClaudeClosed` | `"hide"` | what to do when Claude is closed: `"hide"` the strip, show `"usageOnly"` (the usage bars, with countdowns that keep running), or `"show"` everything. *Closed* means no Claude terminal or agent view is open **and** no session is working or waiting: background jobs that are still running keep the dots up, and the strip drops to this mode once they finish |
 | `notifications` | `true` | toast when a session changes status |
-| `notifyOn` | `["needsInput","done","failed"]` | which new statuses trigger a toast (`working`, `idle` too, if you like noise) |
+| `notifyOn` | `["needsInput","planReady","done","failed"]` | which new statuses trigger a toast (`working`, `idle` too, if you like noise) |
 | `hiddenStatuses` | `[]` | statuses to leave out of the strip |
 | `doneWindowHours` | `24` | finished jobs older than this drop off (`0` keeps them until archived) |
-| `showUsage` | `true` | show the usage ring |
-| `position` | `"right"` | `"right"` = next to the tray, `"left"` = the taskbar's left edge (handy with centered icons) |
-| `usagePosition` | `"after"` | put the usage ring `"before"` or `"after"` the session dots |
+| `showUsage` | `true` | show the usage bars |
+| `showUsagePercent` | `true` | show the percentage next to each usage bar |
+| `position` | `"right"` | `"right"` = next to the tray, `"left"` = the taskbar's left edge (handy with centered icons). The whole strip mirrors: usage always sits at the anchored edge |
 | `offsetX` | `0` | extra gap in pixels (at 100% scaling) from the chosen edge, e.g. to clear the Widgets button on the left |
 | `launchCommand` | `""` | what a click starts when no Claude window is found. Empty = [claude-launcher](https://github.com/lucaslobasso/claude-launcher) if installed, else `wt.exe claude agents` |
 | `focusAumid` | `"ClaudeLauncher.WindowsTerminal"` | AppUserModelID of the window a click brings to front |
 
 ## How it works
 
-- Sessions come from `~/.claude/sessions/<pid>.json` (live processes and their `busy`/`waiting`/`idle` status) merged with `~/.claude/jobs/<id>/state.json` (background job state and its one-line summary). A session counts as live only if its process exists **and** started at the recorded time, so a reused PID can't fool it.
+- Sessions come from `~/.claude/sessions/<pid>.json` (live processes and their `busy`/`waiting`/`idle` status) merged with `~/.claude/jobs/<id>/state.json` (background job state and its one-line summary; a blocked job whose detail is "approve plan" is shown as Plan ready). Whether Claude is "open" is decided by looking for Claude terminal processes (the daemon and its background sessions do not count) and is re-checked only when a watched folder changes, the foreground window changes while closed, or a terminal exits. A session counts as live only if its process exists **and** started at the recorded time, so a reused PID can't fool it.
 - The strip is a per-pixel-alpha layered window owned by the taskbar, so it stays drawn above it. It follows the tray's size, DPI and light/dark changes, and re-docks if Explorer restarts.
 - Notifications use the shell's notification API. A tray icon exists only while a toast is up.
 
 ## Troubleshooting
 
 - **Nothing shows up.** That's expected while Claude isn't running (see `whenClaudeClosed`). Otherwise check `~/.claude/taskbar/taskbar.log`. Run with `CLAUDE_TASKBAR_DEBUG=1` set for more detail.
-- **The ring is missing.** No usage snapshot has been written yet. See [Usage data](#usage-data).
+- **The usage bars are missing.** No usage snapshot has been written yet. See [Usage data](#usage-data).
 - **No toasts.** Windows Do Not Disturb sends them straight to the notification center.
 - **With `position: "left"`, it overlaps the Widgets button.** Raise `offsetX`, or turn Widgets off (Settings → Personalization → Taskbar).
 
