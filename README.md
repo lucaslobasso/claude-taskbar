@@ -177,7 +177,7 @@ done
 
 ```powershell
 dotnet publish src/ClaudeTaskbar.csproj -c Release -o out   # Native AOT build
-node --test mod/test/                                        # usage plugin tests
+node --test "mod/test/*.test.ts"                                        # usage plugin tests
 python docs/render.py                                        # redraw the README pictures (pip install pillow)
 ```
 

@@ -26,7 +26,7 @@ jobs:
           pip install pillow
           python docs/render.py
       - name: Usage plugin tests
-        run: node --test mod/test/
+        run: node --test "mod/test/*.test.ts"
       - name: Validate plugin and marketplace
         run: |
           npm install -g @anthropic-ai/claude-code
