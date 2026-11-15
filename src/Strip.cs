@@ -91,14 +91,14 @@ static unsafe class Strip
         if (pid != 0) hookFgLoc = SetWinEventHook(EVENT_OBJECT_LOCATIONCHANGE, EVENT_OBJECT_LOCATIONCHANGE, 0, &OnWinEvent, pid, 0, WINEVENT_OUTOFCONTEXT);
     }
 
-    /// <summary>Re-evaluates fullscreen after a foreground window change of size; true if it changed.</summary>
-    public static bool RecheckFullscreen()
+    /// <summary>Re-evaluates fullscreen after the foreground window changed size. Always forces a redraw and re-asserts the
+    /// topmost position: a fullscreen window can push the strip below the taskbar even if our flag never flipped
+    /// (fast double Alt+Enter), and the shell state can lag, so a second check follows shortly after.</summary>
+    public static void RecheckFullscreen(bool followUp = true)
     {
-        var fs = IsFullscreen();
-        if (fs == Fullscreen) return false;
-        Fullscreen = fs;
-        Refresh();
-        return true;
+        Fullscreen = IsFullscreen();
+        Refresh(force: true);
+        if (followUp) SetTimer(Hwnd, Program.T_FSCHECK2, 700, 0);
     }
 
     public static bool IsFullscreen()

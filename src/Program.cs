@@ -7,7 +7,7 @@ namespace ClaudeTaskbar;
 
 static unsafe class Program
 {
-    public const nuint T_DEBOUNCE = 1, T_SAFETY = 2, T_RESET = 3, T_HOVER = 4, T_TIP = 5, T_REDOCK = 6, T_NOTIFY = 7, T_TRIM = 8, T_FSCHECK = 9;
+    public const nuint T_DEBOUNCE = 1, T_SAFETY = 2, T_RESET = 3, T_HOVER = 4, T_TIP = 5, T_REDOCK = 6, T_NOTIFY = 7, T_TRIM = 8, T_FSCHECK = 9, T_FSCHECK2 = 10;
     const uint SafetyMs = 60_000;
 
     static readonly List<nint> watches = [];
@@ -131,6 +131,7 @@ static unsafe class Program
             case T_HOVER: Strip.ShowHoverTip(); break;
             case T_TIP: Tooltip.RefreshIfOpen(); break;
             case T_FSCHECK: KillTimer(Strip.Hwnd, T_FSCHECK); Strip.RecheckFullscreen(); break;
+            case T_FSCHECK2: KillTimer(Strip.Hwnd, T_FSCHECK2); Strip.RecheckFullscreen(false); break;
             case T_REDOCK: KillTimer(Strip.Hwnd, T_REDOCK); Strip.Refresh(); break;
             case T_NOTIFY: Notify.Remove(); break;
             case T_TRIM:
