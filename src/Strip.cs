@@ -17,7 +17,7 @@ static unsafe class Strip
     record struct Region(int X0, int X1, int Kind);
     static Region[] regions = [];
 
-    static nint taskbar, tray, hookLoc, hookFg;
+    static nint taskbar, tray, hookLoc, hookFg, hookFgLoc, fgWin;
     static uint dpi = 96;
     static bool tracking, visible;
     static int hover = -1;
@@ -41,6 +41,7 @@ static unsafe class Strip
         TaskbarCreatedMsg = RegisterWindowMessageW("TaskbarCreated");
         hookFg = SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, 0, &OnWinEvent, 0, 0, WINEVENT_OUTOFCONTEXT | 0x2 /* SKIPOWNPROCESS */);
         AttachTaskbar();
+        TrackForeground(GetForegroundWindow());
     }
 
     /// <summary>Finds the taskbar and tray, makes the taskbar our owner and follows its tray's size changes.</summary>
@@ -65,17 +66,57 @@ static unsafe class Strip
     {
         if (ev == EVENT_OBJECT_LOCATIONCHANGE)
         {
-            if (idObject == 0 && hwnd != 0 && (hwnd == tray || hwnd == taskbar)) SetTimer(Hwnd, Program.T_REDOCK, 120, 0);
+            if (idObject != 0 || hwnd == 0) return;
+            if (hwnd == tray || hwnd == taskbar) SetTimer(Hwnd, Program.T_REDOCK, 120, 0);
+            else if (hwnd == fgWin) SetTimer(Hwnd, Program.T_FSCHECK, 250, 0); // foreground window resized/fullscreened (e.g. Alt+Enter)
         }
         else if (ev == EVENT_SYSTEM_FOREGROUND)
         {
+            TrackForeground(hwnd);
             var fs = IsFullscreen();
             if (fs != Fullscreen) { Fullscreen = fs; Refresh(); }
             if (!Sessions.ClaudeOpen) SetTimer(Hwnd, Program.T_DEBOUNCE, 600, 0); // a terminal may have just opened: look for Claude clients
         }
     }
 
-    public static bool IsFullscreen() => SHQueryUserNotificationState(out var s) == 0 && s is 2 or 3 or 4; // busy, D3D fullscreen, presentation
+    /// <summary>Watches location changes of the foreground window's process only, so entering/leaving fullscreen in the
+    /// same window (no foreground event) is noticed without a system-wide hook or polling.</summary>
+    static void TrackForeground(nint hwnd)
+    {
+        if (hwnd == fgWin) return;
+        fgWin = hwnd;
+        if (hookFgLoc != 0) { UnhookWinEvent(hookFgLoc); hookFgLoc = 0; }
+        if (hwnd == 0) return;
+        GetWindowThreadProcessId(hwnd, out var pid);
+        if (pid != 0) hookFgLoc = SetWinEventHook(EVENT_OBJECT_LOCATIONCHANGE, EVENT_OBJECT_LOCATIONCHANGE, 0, &OnWinEvent, pid, 0, WINEVENT_OUTOFCONTEXT);
+    }
+
+    /// <summary>Re-evaluates fullscreen after a foreground window change of size; true if it changed.</summary>
+    public static bool RecheckFullscreen()
+    {
+        var fs = IsFullscreen();
+        if (fs == Fullscreen) return false;
+        Fullscreen = fs;
+        Refresh();
+        return true;
+    }
+
+    public static bool IsFullscreen()
+    {
+        if (SHQueryUserNotificationState(out var s) == 0 && s is 2 or 3 or 4) return true; // busy, D3D fullscreen, presentation
+        // the shell state can lag or miss borderless fullscreen (Windows Terminal Alt+Enter): compare the window with its monitor
+        var fg = GetForegroundWindow();
+        if (fg == 0 || fg == Hwnd || fg == taskbar) return false;
+        char* cls = stackalloc char[64];
+        int n = GetClassNameW(fg, cls, 64);
+        var name = new string(cls, 0, n);
+        if (name is "Progman" or "WorkerW" or "Shell_TrayWnd" or "Shell_SecondaryTrayWnd") return false;
+        if (GetWindowRect(fg, out var r) == 0) return false;
+        var mi = new MONITORINFO { cbSize = (uint)sizeof(MONITORINFO) };
+        var mon = MonitorFromWindow(fg, 2);
+        if (mon == 0 || GetMonitorInfoW(mon, &mi) == 0) return false;
+        return r.Left <= mi.rcMonitor.Left && r.Top <= mi.rcMonitor.Top && r.Right >= mi.rcMonitor.Right && r.Bottom >= mi.rcMonitor.Bottom;
+    }
 
     // ---- content -----------------------------------------------------------------------------------------------
 
@@ -425,6 +466,7 @@ static unsafe class Strip
                     Notify.Remove();
                     if (hookLoc != 0) UnhookWinEvent(hookLoc);
                     if (hookFg != 0) UnhookWinEvent(hookFg);
+                    if (hookFgLoc != 0) UnhookWinEvent(hookFgLoc);
                     PostQuitMessage(0);
                     return 0;
             }
