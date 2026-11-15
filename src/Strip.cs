@@ -91,7 +91,7 @@ static unsafe class Strip
         bool gauge = Settings.ShowUsage && Usage.HasData && (open || Settings.WhenClaudeClosed != ClosedMode.Hide);
         if (gauge)
         {
-            // one bar per window, 5-hour first (nearest the edge), then weekly
+            // one bar per window: weekly at the anchored edge, then 5-hour next to the statuses
             void Bar(int kind, Usage.Window w)
             {
                 if (w.Pct == null) return;
@@ -100,8 +100,8 @@ static unsafe class Strip
                 string text = !Settings.ShowUsagePercent ? "" : p is { } v ? $"{Math.Round(v):0}%" : "–";
                 items.Add(new Item(kind, text, col, Math.Clamp((p ?? 0) / 100.0, 0, 1)));
             }
-            Bar(GaugeKind, Usage.FiveHour);
-            Bar(GaugeKind + 1, Usage.Weekly);
+            Bar(GaugeKind + 1, Usage.Weekly);   // at the anchored edge
+            Bar(GaugeKind, Usage.FiveHour);     // right next to the statuses
         }
         if (sessions)
             foreach (var s in Enum.GetValues<Status>().OrderByDescending(x => x)) // idle ... needs input, outward from the edge
@@ -153,7 +153,7 @@ static unsafe class Strip
     {
         float s = dpi / 96f;
         int H = tb.Height;
-        int pad = R(6 * s), dotD = R(18 * s), dotPad = R(5 * s), gap = R(5 * s), groupGap = R(9 * s), barW = R(48 * s);
+        int pad = R(6 * s), dotD = R(18 * s), dotPad = R(5 * s), gap = R(5 * s), groupGap = R(9 * s), barW = R(6 * s);
 
         var font = CreateFontW(-R(12 * s), 0, 0, 0, 400, 0, 0, 0, 1, 0, 0, 4 /* ANTIALIASED_QUALITY: grayscale coverage */, 0, "Segoe UI");
         var boldFont = CreateFontW(-R(11 * s), 0, 0, 0, 600, 0, 0, 0, 1, 0, 0, 4, 0, "Segoe UI");
@@ -215,7 +215,7 @@ static unsafe class Strip
         // 2. shapes: colored dots/pills, usage ring
         foreach (var (x0, w, item) in shapes)
         {
-            if (IsGauge(item.Kind)) Bar(px, W, H, x0, barW, cy, dotD / 2f, item.Fill, item.Color == 0 ? fg : item.Color, fg);
+            if (IsGauge(item.Kind)) Bar(px, W, H, x0, barW, cy, dotD, item.Fill, item.Color == 0 ? fg : item.Color, fg);
             else Pill(px, W, H, x0, x0 + w, cy, dotD / 2f, item.Color);
         }
 
@@ -295,11 +295,24 @@ static unsafe class Strip
             }
     }
 
-    /// <summary>Usage bar as tall as the status dots: a faint track with the used part filled.</summary>
-    static void Bar(uint* px, int W, int H, int x0, int w, int cy, float r, double fill, uint rgb, uint track)
+    /// <summary>Thin vertical usage bar as tall as the status dots: a faint track, the used part filled from the bottom.</summary>
+    static void Bar(uint* px, int W, int H, int x0, int w, int cy, int h, double fill, uint rgb, uint track)
     {
-        Pill(px, W, H, x0, x0 + w, cy, r, track, 0.28f);
-        if (fill > 0) Pill(px, W, H, x0, x0 + w, cy, r, rgb, 1f, x0 + (float)(fill * w));
+        VPill(px, W, H, x0, w, cy, h, track, 0.28f, float.MinValue);
+        if (fill > 0) VPill(px, W, H, x0, w, cy, h, rgb, 1f, cy + h / 2f - (float)(fill * h));
+    }
+
+    /// <summary>Vertical capsule w wide and h tall, centered on cy; pixels above limitY are left out.</summary>
+    static void VPill(uint* px, int W, int H, int x0, int w, int cy, int h, uint rgb, float alpha, float limitY)
+    {
+        float r = w / 2f, cx = x0 + r, top = cy - h / 2f, bot = cy + h / 2f, a = top + r, b = bot - r;
+        for (int y = (int)top - 1; y <= (int)bot + 1; y++)
+            for (int x = x0 - 1; x <= x0 + w + 1; x++)
+            {
+                float fy = Math.Clamp(y + 0.5f, a, b), dx = x + 0.5f - cx, dy = y + 0.5f - fy;
+                float cov = Math.Clamp(r + 0.5f - MathF.Sqrt(dx * dx + dy * dy), 0f, 1f) * alpha * Math.Clamp(y + 1 - limitY, 0f, 1f);
+                Put(px, W, H, x, y, rgb, cov);
+            }
     }
 
     // ---- input -------------------------------------------------------------------------------------------------

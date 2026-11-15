@@ -14,7 +14,7 @@ On the left, mirrored (usage bars at the left edge, then statuses running left t
 
 ![The strip on the left of the taskbar, the same items mirrored](docs/strip-left.png)
 
-- **Statuses:** a colored dot with the session count inside it for each status that has sessions (statuses with no sessions are hidden), so the strip grows only as needed. Starting at the edge the strip is anchored to (the right edge, or the left one with `position: "left"`) come the two usage bars, then the statuses in this order:
+- **Statuses:** a colored dot with the session count inside it for each status that has sessions (statuses with no sessions are hidden), so the strip grows only as needed. Starting at the edge the strip is anchored to (the right edge, or the left one with `position: "left"`) come the weekly and 5-hour usage bars, then the statuses in this order:
 
   | Dot | Status | Meaning |
   |---|---|---|
@@ -26,7 +26,7 @@ On the left, mirrored (usage bars at the left edge, then statuses running left t
   | 🟠 | Needs input | waiting for you (a question or a permission) |
 
 - **Tooltips:** hover a dot to see each session's name and a shortened last message. Hover a usage bar for 5-hour and weekly usage, with live countdowns to each reset.
-- **Usage bars:** one for the 5-hour limit and one for the weekly limit, as tall as the status dots, each with its percentage next to it (turn the percentages off with `showUsagePercent`). A bar turns amber at 70% and red at 90%.
+- **Usage bars:** two thin vertical bars as tall as the status dots, filling from the bottom: the weekly limit at the anchored edge and the 5-hour limit next to the statuses. Each has its percentage next to it (turn the percentages off with `showUsagePercent`). A bar turns amber at 70% and red at 90%.
 - **Notifications** (optional): a Windows toast when a session needs input, has a plan ready, finishes or fails. Click it to open Claude.
 - **Click** the strip to focus your Claude window (or start Claude). **Right-click** for options.
 
