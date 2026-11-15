@@ -4,29 +4,29 @@
 ![Windows 11](https://img.shields.io/badge/Windows-11-0078d4.svg)
 ![Native AOT](https://img.shields.io/badge/.NET-Native%20AOT-512bd4.svg)
 
-A tiny strip in the Windows 11 taskbar that shows your [Claude Code](https://claude.com/claude-code) sessions at a glance: one colored dot per status with the count inside it, and a ring with your usage limits. Hover for details, click to open Claude.
+A tiny strip in the Windows 11 taskbar that shows your [Claude Code](https://claude.com/claude-code) sessions at a glance: one colored dot per status with the count inside it, and two bars with your usage limits. Hover for details, click to open Claude.
 
-On the right, next to the tray (usage sits at the right edge, statuses run right to left):
+On the right, next to the tray (usage bars at the right edge, then statuses running right to left):
 
-![The strip next to the tray: usage 78%, then needs input, plan ready, failed, working, done and idle](docs/strip-right.png)
+![The strip next to the tray: two usage bars, then idle, done, working, failed, plan ready and needs input](docs/strip-right.png)
 
-On the left, mirrored (usage at the left edge, statuses run left to right):
+On the left, mirrored (usage bars at the left edge, then statuses running left to right):
 
 ![The strip on the left of the taskbar, the same items mirrored](docs/strip-left.png)
 
-- **Statuses:** a colored dot with the session count inside it for each status that has sessions (statuses with no sessions are hidden), so the strip grows only as needed. They are ordered from the edge the strip is anchored to (the right edge, or the left one with `position: "left"`), after the usage ring:
+- **Statuses:** a colored dot with the session count inside it for each status that has sessions (statuses with no sessions are hidden), so the strip grows only as needed. Starting at the edge the strip is anchored to (the right edge, or the left one with `position: "left"`) come the two usage bars, then the statuses in this order:
 
   | Dot | Status | Meaning |
   |---|---|---|
-  | 🟠 | Needs input | waiting for you (a question or a permission) |
-  | 🟣 | Plan ready | a session finished a plan and waits for your approval |
-  | 🔴 | Failed | a background job failed |
-  | 🔵 | Working | a session is busy |
-  | 🟢 | Done | a background job finished |
   | ⚪/⚫ | Idle | a session is open, doing nothing (white on a dark taskbar, black on a light one) |
+  | 🟢 | Done | a background job finished |
+  | 🔵 | Working | a session is busy |
+  | 🔴 | Failed | a background job failed |
+  | 🟣 | Plan ready | a session finished a plan and waits for your approval |
+  | 🟠 | Needs input | waiting for you (a question or a permission) |
 
-- **Tooltips:** hover a dot to see each session's name and a shortened last message. Hover the ring for 5-hour and weekly usage, with live countdowns to each reset.
-- **Usage ring:** shows the limit that is closest to full. It turns amber at 70% and red at 90%.
+- **Tooltips:** hover a dot to see each session's name and a shortened last message. Hover a usage bar for 5-hour and weekly usage, with live countdowns to each reset.
+- **Usage bars:** one for the 5-hour limit and one for the weekly limit, as tall as the status dots, each with its percentage next to it (turn the percentages off with `showUsagePercent`). A bar turns amber at 70% and red at 90%.
 - **Notifications** (optional): a Windows toast when a session needs input, has a plan ready, finishes or fails. Click it to open Claude.
 - **Click** the strip to focus your Claude window (or start Claude). **Right-click** for options.
 
@@ -62,12 +62,13 @@ Right-click the strip for the common ones, or edit `~/.claude/taskbar/taskbar.js
 
 | Key | Default | |
 |---|---|---|
-| `whenClaudeClosed` | `"hide"` | what to do when Claude is closed: `"hide"` the strip, show `"usageOnly"` (the ring, with countdowns that keep running), or `"show"` everything. *Closed* means no Claude terminal or agent view is open **and** no session is working or waiting: background jobs that are still running keep the dots up, and the strip drops to this mode once they finish |
+| `whenClaudeClosed` | `"hide"` | what to do when Claude is closed: `"hide"` the strip, show `"usageOnly"` (the usage bars, with countdowns that keep running), or `"show"` everything. *Closed* means no Claude terminal or agent view is open **and** no session is working or waiting: background jobs that are still running keep the dots up, and the strip drops to this mode once they finish |
 | `notifications` | `true` | toast when a session changes status |
 | `notifyOn` | `["needsInput","planReady","done","failed"]` | which new statuses trigger a toast (`working`, `idle` too, if you like noise) |
 | `hiddenStatuses` | `[]` | statuses to leave out of the strip |
 | `doneWindowHours` | `24` | finished jobs older than this drop off (`0` keeps them until archived) |
-| `showUsage` | `true` | show the usage ring |
+| `showUsage` | `true` | show the usage bars |
+| `showUsagePercent` | `true` | show the percentage next to each usage bar |
 | `position` | `"right"` | `"right"` = next to the tray, `"left"` = the taskbar's left edge (handy with centered icons). The whole strip mirrors: usage always sits at the anchored edge |
 | `offsetX` | `0` | extra gap in pixels (at 100% scaling) from the chosen edge, e.g. to clear the Widgets button on the left |
 | `launchCommand` | `""` | what a click starts when no Claude window is found. Empty = [claude-launcher](https://github.com/lucaslobasso/claude-launcher) if installed, else `wt.exe claude agents` |
@@ -82,7 +83,7 @@ Right-click the strip for the common ones, or edit `~/.claude/taskbar/taskbar.js
 ## Troubleshooting
 
 - **Nothing shows up.** That's expected while Claude isn't running (see `whenClaudeClosed`). Otherwise check `~/.claude/taskbar/taskbar.log`. Run with `CLAUDE_TASKBAR_DEBUG=1` set for more detail.
-- **The ring is missing.** No usage snapshot has been written yet. See [Usage data](#usage-data).
+- **The usage bars are missing.** No usage snapshot has been written yet. See [Usage data](#usage-data).
 - **No toasts.** Windows Do Not Disturb sends them straight to the notification center.
 - **With `position: "left"`, it overlaps the Widgets button.** Raise `offsetX`, or turn Widgets off (Settings → Personalization → Taskbar).
 

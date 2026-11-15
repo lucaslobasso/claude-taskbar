@@ -12,7 +12,8 @@ static unsafe class Strip
     public static uint TaskbarCreatedMsg;
     public static bool Fullscreen;
 
-    const int GaugeKind = 100;
+    const int GaugeKind = 100; // 100 = 5-hour bar, 101 = weekly bar
+    static bool IsGauge(int kind) => kind >= GaugeKind;
     record struct Region(int X0, int X1, int Kind);
     static Region[] regions = [];
 
@@ -90,14 +91,20 @@ static unsafe class Strip
         bool gauge = Settings.ShowUsage && Usage.HasData && (open || Settings.WhenClaudeClosed != ClosedMode.Hide);
         if (gauge)
         {
-            // the most constraining window: whichever is closer to its limit (the tooltip lists both)
-            double? p5 = Usage.Current(Usage.FiveHour), p7 = Usage.Current(Usage.Weekly);
-            double? p = p5 == null ? p7 : p7 == null ? p5 : Math.Max(p5.Value, p7.Value);
-            uint col = p is >= 90 ? 0xE5534Bu : p is >= 70 ? 0xE8B04Bu : 0u;
-            items.Add(new Item(GaugeKind, p is { } v ? $"{Math.Round(v):0}%" : "–", col, Math.Clamp((p ?? 0) / 100.0, 0, 1)));
+            // one bar per window, 5-hour first (nearest the edge), then weekly
+            void Bar(int kind, Usage.Window w)
+            {
+                if (w.Pct == null) return;
+                double? p = Usage.Current(w);
+                uint col = p is >= 90 ? 0xE5534Bu : p is >= 70 ? 0xE8B04Bu : 0u;
+                string text = !Settings.ShowUsagePercent ? "" : p is { } v ? $"{Math.Round(v):0}%" : "–";
+                items.Add(new Item(kind, text, col, Math.Clamp((p ?? 0) / 100.0, 0, 1)));
+            }
+            Bar(GaugeKind, Usage.FiveHour);
+            Bar(GaugeKind + 1, Usage.Weekly);
         }
         if (sessions)
-            foreach (var s in Enum.GetValues<Status>())
+            foreach (var s in Enum.GetValues<Status>().OrderByDescending(x => x)) // idle ... needs input, outward from the edge
             {
                 if (Settings.Hidden.Contains(s)) continue;
                 var n = Sessions.Count(s);
@@ -146,7 +153,7 @@ static unsafe class Strip
     {
         float s = dpi / 96f;
         int H = tb.Height;
-        int pad = R(6 * s), dotD = R(18 * s), dotPad = R(5 * s), gap = R(5 * s), groupGap = R(9 * s), ringD = R(14 * s);
+        int pad = R(6 * s), dotD = R(18 * s), dotPad = R(5 * s), gap = R(5 * s), groupGap = R(9 * s), barW = R(48 * s);
 
         var font = CreateFontW(-R(12 * s), 0, 0, 0, 400, 0, 0, 0, 1, 0, 0, 4 /* ANTIALIASED_QUALITY: grayscale coverage */, 0, "Segoe UI");
         var boldFont = CreateFontW(-R(11 * s), 0, 0, 0, 600, 0, 0, 0, 1, 0, 0, 4, 0, "Segoe UI");
@@ -161,11 +168,11 @@ static unsafe class Strip
         int textH = 0, W = pad;
         for (int i = 0; i < items.Count; i++)
         {
-            bool ring = items[i].Kind == GaugeKind;
+            bool ring = IsGauge(items[i].Kind);
             SelectObject(dc, ring ? font : boldFont);
             GetTextExtentPoint32W(dc, items[i].Text, items[i].Text.Length, out var sz);
             textW[i] = sz.Cx; textH = Math.Max(textH, sz.Cy);
-            widths[i] = ring ? ringD + gap + sz.Cx : Math.Max(dotD, sz.Cx + 2 * dotPad);
+            widths[i] = ring ? barW + (items[i].Text.Length > 0 ? gap + sz.Cx : 0) : Math.Max(dotD, sz.Cx + 2 * dotPad);
             W += widths[i] + (i < items.Count - 1 ? groupGap : 0);
         }
         W += pad;
@@ -187,7 +194,7 @@ static unsafe class Strip
         {
             var it = items[i];
             int x0 = x, tx;
-            if (it.Kind == GaugeKind) { tx = x + ringD + gap; SelectObject(dc, font); spans[i] = (tx, tx + textW[i], fg); }
+            if (IsGauge(it.Kind)) { tx = x + barW + gap; SelectObject(dc, font); spans[i] = (tx, tx + textW[i], fg); }
             else { tx = x + (widths[i] - textW[i]) / 2; SelectObject(dc, boldFont); spans[i] = (tx, tx + textW[i], it.TextColor); }
             TextOutW(dc, tx, ty, it.Text, it.Text.Length);
             shapes.Add((x0, widths[i], it));
@@ -208,16 +215,28 @@ static unsafe class Strip
         // 2. shapes: colored dots/pills, usage ring
         foreach (var (x0, w, item) in shapes)
         {
-            if (item.Kind == GaugeKind) Ring(px, W, H, x0 + ringD / 2, cy, ringD / 2f, Math.Max(1.6f, 2.2f * s), item.Fill, item.Color == 0 ? fg : item.Color, fg);
+            if (IsGauge(item.Kind)) Bar(px, W, H, x0, barW, cy, dotD / 2f, item.Fill, item.Color == 0 ? fg : item.Color, fg);
             else Pill(px, W, H, x0, x0 + w, cy, dotD / 2f, item.Color);
         }
 
-        // 3. text over the shapes, each label in its own color
+        // 3. text over the shapes, each label in its own color. Segoe UI leaves more room above the digits than
+        // below, so every label is shifted until its ink is centered on the dots' center line.
         foreach (var (a, b, color) in spans)
+        {
+            if (b <= a) continue;
+            int lo = H, hi = -1;
             for (int yy = 0; yy < H; yy++)
                 for (int xx = Math.Max(0, a - 1); xx < Math.Min(W, b + 1); xx++)
+                    if (cov[yy * W + xx] != 0) { lo = Math.Min(lo, yy); hi = Math.Max(hi, yy); }
+            if (hi < 0) continue;
+            int dy = (int)MathF.Round(cy - (lo + hi + 1) / 2f);
+            for (int yy = 0; yy < H; yy++)
+            {
+                int sy = yy - dy;
+                if ((uint)sy >= (uint)H) continue;
+                for (int xx = Math.Max(0, a - 1); xx < Math.Min(W, b + 1); xx++)
                 {
-                    int c = cov[yy * W + xx];
+                    int c = cov[sy * W + xx];
                     if (c == 0) continue;
                     uint d = px[yy * W + xx], t = Premul(color, c);
                     uint inv = (uint)(255 - c);
@@ -227,6 +246,8 @@ static unsafe class Strip
                     uint ob = (t & 0xFF) + (((d & 0xFF) * inv + 127) / 255);
                     px[yy * W + xx] = (oa << 24) | (Math.Min(255u, orr) << 16) | (Math.Min(255u, og) << 8) | Math.Min(255u, ob);
                 }
+            }
+        }
 
         stripW = W; stripH = H;
         // right: just left of the tray. left: from the taskbar's left edge (with centered icons that side is empty;
@@ -261,31 +282,24 @@ static unsafe class Strip
         if (a > (int)(px[y * W + x] >> 24)) px[y * W + x] = Premul(rgb, a);
     }
 
-    /// <summary>Capsule from x0 to x1 (a disc when x1 - x0 == 2r), centered on cy.</summary>
-    static void Pill(uint* px, int W, int H, int x0, int x1, int cy, float r, uint rgb)
+    /// <summary>Capsule from x0 to x1 (a disc when x1 - x0 == 2r), centered on cy. Optional alpha and a right clip edge.</summary>
+    static void Pill(uint* px, int W, int H, int x0, int x1, int cy, float r, uint rgb, float alpha = 1f, float limit = float.MaxValue)
     {
         float a = x0 + r, b = x1 - r;
         for (int y = (int)(cy - r - 1); y <= (int)(cy + r + 1); y++)
             for (int x = x0 - 1; x <= x1 + 1; x++)
             {
                 float fx = Math.Clamp(x + 0.5f, a, b), dx = x + 0.5f - fx, dy = y + 0.5f - cy;
-                Put(px, W, H, x, y, rgb, r + 0.5f - MathF.Sqrt(dx * dx + dy * dy));
+                float cov = Math.Clamp(r + 0.5f - MathF.Sqrt(dx * dx + dy * dy), 0f, 1f) * alpha * Math.Clamp(limit - x, 0f, 1f);
+                Put(px, W, H, x, y, rgb, cov);
             }
     }
 
-    static void Ring(uint* px, int W, int H, int cx, int cy, float ro, float stroke, double fill, uint rgb, uint track)
+    /// <summary>Usage bar as tall as the status dots: a faint track with the used part filled.</summary>
+    static void Bar(uint* px, int W, int H, int x0, int w, int cy, float r, double fill, uint rgb, uint track)
     {
-        float ri = ro - stroke, limit = (float)(fill * Math.PI * 2);
-        for (int y = (int)(cy - ro - 1); y <= (int)(cy + ro + 1); y++)
-            for (int x = (int)(cx - ro - 1); x <= (int)(cx + ro + 1); x++)
-            {
-                float dx = x + 0.5f - cx, dy = y + 0.5f - cy, d = MathF.Sqrt(dx * dx + dy * dy);
-                float cov = Math.Min(Math.Clamp(ro + 0.5f - d, 0, 1), Math.Clamp(d - ri + 0.5f, 0, 1));
-                if (cov <= 0) continue;
-                float a = MathF.Atan2(dx, -dy); if (a < 0) a += MathF.PI * 2; // 0 at 12 o'clock, clockwise
-                if (a <= limit) Put(px, W, H, x, y, rgb, cov);
-                else Put(px, W, H, x, y, track, cov * 0.28f);
-            }
+        Pill(px, W, H, x0, x0 + w, cy, r, track, 0.28f);
+        if (fill > 0) Pill(px, W, H, x0, x0 + w, cy, r, rgb, 1f, x0 + (float)(fill * w));
     }
 
     // ---- input -------------------------------------------------------------------------------------------------
@@ -309,12 +323,12 @@ static unsafe class Strip
         KillTimer(Hwnd, Program.T_HOVER);
         if (hover < 0 || hover >= regions.Length || !visible) return;
         var r = regions[hover];
-        Tooltip.Show(r.Kind == GaugeKind ? null : (Status)r.Kind, stripX + (r.X0 + r.X1) / 2, stripY, dpi);
+        Tooltip.Show(IsGauge(r.Kind) ? null : (Status)r.Kind, stripX + (r.X0 + r.X1) / 2, stripY, dpi);
     }
 
     static void Menu()
     {
-        const int Open = 1, Refresh_ = 2, Notif = 10, Hide_ = 20, UsageOnly = 21, Show_ = 22, Gauge = 30, Auto = 40, Edit = 50,
+        const int Open = 1, Refresh_ = 2, Notif = 10, Hide_ = 20, UsageOnly = 21, Show_ = 22, Gauge = 30, GaugePct = 31, Auto = 40, Edit = 50,
             PosLeft = 60, PosRight = 61, Exit = 99;
         var pos = CreatePopupMenu();
         AppendMenuW(pos, Settings.Left ? MF_CHECKED : 0, PosLeft, "Left side (usage on the left)");
@@ -329,6 +343,7 @@ static unsafe class Strip
         AppendMenuW(m, MF_SEPARATOR, 0, null);
         AppendMenuW(m, Settings.Notifications ? MF_CHECKED : 0, Notif, "Notifications");
         AppendMenuW(m, Settings.ShowUsage ? MF_CHECKED : 0, Gauge, "Show usage");
+        AppendMenuW(m, (Settings.ShowUsagePercent ? MF_CHECKED : 0) | (Settings.ShowUsage ? 0 : MF_GRAYED), GaugePct, "Show usage percent");
         AppendMenuW(m, MF_POPUP, (nuint)sub, "When no terminal is open and nothing runs");
         AppendMenuW(m, MF_POPUP, (nuint)pos, "Position");
         AppendMenuW(m, Shell.Autostart ? MF_CHECKED : 0, Auto, "Start with Windows");
@@ -346,6 +361,7 @@ static unsafe class Strip
             case Refresh_: Program.Reload(force: true); break;
             case Notif: Settings.Notifications = !Settings.Notifications; Settings.Save(); break;
             case Gauge: Settings.ShowUsage = !Settings.ShowUsage; Settings.Save(); Refresh(); break;
+            case GaugePct: Settings.ShowUsagePercent = !Settings.ShowUsagePercent; Settings.Save(); Refresh(); break;
             case Hide_: Settings.WhenClaudeClosed = ClosedMode.Hide; Settings.Save(); Refresh(); break;
             case UsageOnly: Settings.WhenClaudeClosed = ClosedMode.UsageOnly; Settings.Save(); Refresh(); break;
             case Show_: Settings.WhenClaudeClosed = ClosedMode.Show; Settings.Save(); Refresh(); break;

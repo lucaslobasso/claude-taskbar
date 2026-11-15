@@ -27,6 +27,7 @@ static class Settings
     public static HashSet<Status> Hidden = [];
     public static int DoneWindowHours = 24;
     public static bool ShowUsage = true;
+    public static bool ShowUsagePercent = true; // the percent next to each usage bar
     public static int OffsetX;      // px at 100% scaling, measured from the chosen edge
     public static bool Left;        // "position": "left" (taskbar's left edge) or "right" (next to the tray, default)
     public static string LaunchCommand = "";   // empty = Claude launcher if installed, else Windows Terminal running `claude agents`
@@ -51,6 +52,7 @@ static class Settings
             Hidden = StatusSet(r, "hiddenStatuses") ?? [];
             DoneWindowHours = Int(r, "doneWindowHours", 24);
             ShowUsage = Bool(r, "showUsage", true);
+            ShowUsagePercent = Bool(r, "showUsagePercent", true);
             OffsetX = Int(r, "offsetX", 0);
             Left = Str(r, "position") == "left";
             LaunchCommand = Str(r, "launchCommand") ?? "";
@@ -75,6 +77,7 @@ static class Settings
                 WriteSet(w, "hiddenStatuses", Hidden);
                 w.WriteNumber("doneWindowHours", DoneWindowHours);
                 w.WriteBoolean("showUsage", ShowUsage);
+                w.WriteBoolean("showUsagePercent", ShowUsagePercent);
                 w.WriteString("position", Left ? "left" : "right");
                 w.WriteNumber("offsetX", OffsetX);
                 w.WriteString("launchCommand", LaunchCommand);
