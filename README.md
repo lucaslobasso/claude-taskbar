@@ -50,11 +50,11 @@ cd claude-taskbar
 
 ### Usage data
 
-Claude Code gives the rate-limit numbers only to the **status line**, so the strip reads a small snapshot that your status line writes. Add [`statusline/usage-snapshot.mjs`](statusline/usage-snapshot.mjs) to your status line script and call `snapshotUsage(input)` with the parsed status JSON. It writes `~/.claude/taskbar/usage.json` only when that folder exists.
+The strip reads `~/.claude/taskbar/usage.json`, which a small Claude Code plugin ([`mod/`](mod), `taskbar-usage`) writes. `install.ps1` installs it at user scope (`.\install.ps1 -ModOnly` installs just the plugin). It works with any status line, or none, and costs no tokens or network: it uses the rate limits Claude Code already has, via the `session.measure` hook, which only fires when a window moves a whole point. It writes only when the taskbar folder exists.
 
-Every open session runs the status line, but each one reports the numbers from its own last request, so idle sessions carry old, lower numbers. Usage within a window only goes up, so the snippet merges readings instead of overwriting them: the newest window wins, and within a window the highest percentage wins. It writes only when that result changes.
+Every open session reports the numbers from its own last request, so idle sessions carry old, lower numbers. Usage within a window only goes up, so the plugin merges readings instead of overwriting them: the newest window wins, and within a window the highest percentage wins. It writes only when that result changes.
 
-The snapshot refreshes while an interactive Claude Code session shows its status line. The countdowns stay exact anyway, because they are computed from the stored reset times. After a reset, the ring shows "–" until fresh data arrives.
+The snapshot refreshes while a Claude Code session is working. The countdowns stay exact anyway, because they are computed from the stored reset times. After a reset, the ring shows "–" until fresh data arrives.
 
 ## Settings
 

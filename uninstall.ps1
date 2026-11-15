@@ -6,6 +6,11 @@ param([switch]$Purge)
 $claudeDir = if ($env:CLAUDE_CONFIG_DIR) { $env:CLAUDE_CONFIG_DIR } else { Join-Path $HOME '.claude' }
 $dest = Join-Path $claudeDir 'taskbar'
 
+if (Get-Command claude -ErrorAction SilentlyContinue) {
+  claude plugin uninstall taskbar-usage@taskbar-usage --scope user 2>&1 | Out-Null
+  claude plugin marketplace remove taskbar-usage 2>&1 | Out-Null
+}
+Remove-Item (Join-Path $dest 'mod') -Recurse -Force -ErrorAction SilentlyContinue
 Get-Process ClaudeTaskbar -ErrorAction SilentlyContinue | Stop-Process -Force
 Remove-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name ClaudeTaskbar -ErrorAction SilentlyContinue
 Start-Sleep -Milliseconds 300

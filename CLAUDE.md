@@ -11,7 +11,7 @@ threads, no UI frameworks, no reflection-based JSON. Never add network calls (ze
 
 ## Testing without touching the real ~/.claude
 - Point `CLAUDE_CONFIG_DIR` at a fake folder with `sessions/<n>.json` (use a live pid, e.g. explorer's, and omit
-  `procStart`) and `jobs/<id>/state.json`, plus `taskbar/usage.json`. Only one instance runs (named mutex).
+  `procStart`) and `jobs/<id>/state.json`, plus `taskbar/usage.json` (written by the `mod/` plugin on `session.measure`; tests: `node --test mod/test/`). Only one instance runs (named mutex).
 - `CLAUDE_TASKBAR_DEBUG=1` logs renders/toasts to `taskbar.log`; `CLAUDE_TASKBAR_DEBUG_TIP=working|gauge|...` opens a
   tooltip at startup (no mouse needed).
 - Screenshots must BitBlt with CAPTUREBLT (0x40CC0020) or the layered strip is invisible in the capture.

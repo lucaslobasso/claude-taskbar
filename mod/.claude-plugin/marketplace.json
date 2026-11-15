@@ -1,0 +1,11 @@
+{
+  "name": "taskbar-usage",
+  "owner": { "name": "lucaslobasso" },
+  "plugins": [
+    {
+      "name": "taskbar-usage",
+      "source": "./",
+      "description": "Feeds the usage ring/bars of Claude Taskbar."
+    }
+  ]
+}

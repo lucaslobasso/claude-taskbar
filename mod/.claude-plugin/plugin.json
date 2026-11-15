@@ -1,0 +1,7 @@
+{
+  "name": "taskbar-usage",
+  "version": "0.1.0",
+  "description": "Writes the 5-hour and weekly usage to ~/.claude/taskbar/usage.json for Claude Taskbar. No network, no tokens.",
+  "author": { "name": "lucaslobasso" },
+  "license": "MIT"
+}
