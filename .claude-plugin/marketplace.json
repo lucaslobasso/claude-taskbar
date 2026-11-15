@@ -1,0 +1,17 @@
+{
+  "name": "claude-taskbar",
+  "owner": { "name": "Lucas Lobasso", "url": "https://github.com/lucaslobasso" },
+  "metadata": {
+    "description": "Companion plugin for Claude Taskbar (Windows)",
+    "version": "1.1.0"
+  },
+  "plugins": [
+    {
+      "name": "taskbar-usage",
+      "source": "./mod",
+      "description": "Feeds the usage bars of Claude Taskbar: writes the 5-hour and weekly usage to ~/.claude/taskbar/usage.json. No network, no tokens.",
+      "version": "0.2.0",
+      "category": "productivity"
+    }
+  ]
+}

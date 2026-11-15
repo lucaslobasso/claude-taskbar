@@ -1,4 +1,4 @@
-// usage.json is written by the boxed-messages status line (no API calls here, no tokens).
+// usage.json is written by the taskbar-usage plugin (mod/) on every usage reading: no API calls here, no tokens.
 // Countdowns are computed from the stored reset dates, so they stay exact even when the snapshot is old.
 namespace ClaudeTaskbar;
 

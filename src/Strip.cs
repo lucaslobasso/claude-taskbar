@@ -122,15 +122,25 @@ static unsafe class Strip
 
     record struct Item(int Kind, string Text, uint Color, double Fill, uint TextColor = 0xFFFFFF); // Kind: (int)Status or GaugeKind
 
+    /// <summary>What the strip shows, independent of where it comes from (live files, or --render for the README).</summary>
+    public record struct View(bool Light, bool Left, bool Gauge, bool Sessions, bool ShowPercent,
+                              Usage.Window FiveHour, Usage.Window Weekly, Func<Status, int> Count, HashSet<Status> Hidden);
+
+    static View LiveView(bool light)
+    {
+        bool open = Sessions.ClaudeOpen;
+        return new View(light, Settings.Left,
+            Gauge: Settings.ShowUsage && Usage.HasData && (open || Settings.WhenClaudeClosed != ClosedMode.Hide),
+            Sessions: open || Settings.WhenClaudeClosed == ClosedMode.Show,
+            ShowPercent: Settings.ShowUsagePercent, Usage.FiveHour, Usage.Weekly, Sessions.Count, Settings.Hidden);
+    }
+
     /// <summary>Items left to right. Logical order starts at the anchored edge (usage, then needs input ... idle);
     /// on the right side the strip is mirrored so usage sits next to the tray.</summary>
-    static List<Item> BuildItems(bool light)
+    static List<Item> BuildItems(View v)
     {
         var items = new List<Item>();
-        bool open = Sessions.ClaudeOpen;
-        bool sessions = open || Settings.WhenClaudeClosed == ClosedMode.Show;
-        bool gauge = Settings.ShowUsage && Usage.HasData && (open || Settings.WhenClaudeClosed != ClosedMode.Hide);
-        if (gauge)
+        if (v.Gauge)
         {
             // one bar per window: weekly at the anchored edge, then 5-hour next to the statuses
             void Bar(int kind, Usage.Window w)
@@ -138,20 +148,20 @@ static unsafe class Strip
                 if (w.Pct == null) return;
                 double? p = Usage.Current(w);
                 uint col = p is >= 90 ? 0xE5534Bu : p is >= 70 ? 0xE8B04Bu : 0u;
-                string text = !Settings.ShowUsagePercent ? "" : p is { } v ? $"{Math.Round(v):0}%" : "–";
+                string text = !v.ShowPercent ? "" : p is { } pv ? $"{Math.Round(pv):0}%" : "–";
                 items.Add(new Item(kind, text, col, Math.Clamp((p ?? 0) / 100.0, 0, 1)));
             }
-            Bar(GaugeKind + 1, Usage.Weekly);   // at the anchored edge
-            Bar(GaugeKind, Usage.FiveHour);     // right next to the statuses
+            Bar(GaugeKind + 1, v.Weekly);   // at the anchored edge
+            Bar(GaugeKind, v.FiveHour);     // right next to the statuses
         }
-        if (sessions)
+        if (v.Sessions)
             foreach (var s in Enum.GetValues<Status>().OrderByDescending(x => x)) // idle ... needs input, outward from the edge
             {
-                if (Settings.Hidden.Contains(s)) continue;
-                var n = Sessions.Count(s);
-                if (n > 0) items.Add(new Item((int)s, n.ToString(), StatusInfo.Color(s, light), 0, StatusInfo.TextColor(s, light)));
+                if (v.Hidden.Contains(s)) continue;
+                var n = v.Count(s);
+                if (n > 0) items.Add(new Item((int)s, n.ToString(), StatusInfo.Color(s, v.Light), 0, StatusInfo.TextColor(s, v.Light)));
             }
-        if (!Settings.Left) items.Reverse();
+        if (!v.Left) items.Reverse();
         return items;
     }
 
@@ -162,7 +172,7 @@ static unsafe class Strip
     {
         if (taskbar == 0 || IsWindow(taskbar) == 0 || tray == 0 || IsWindow(tray) == 0) AttachTaskbar();
         bool light = LightTheme();
-        var items = BuildItems(light);
+        var items = BuildItems(LiveView(light));
         if (taskbar == 0 || Fullscreen || items.Count == 0) { Hide(); return; }
 
         GetWindowRect(taskbar, out var tb);
@@ -190,7 +200,7 @@ static unsafe class Strip
 
     // ---- drawing -----------------------------------------------------------------------------------------------
 
-    static void Render(List<Item> items, RECT tb, RECT tr, bool light)
+    static void Render(List<Item> items, RECT tb, RECT tr, bool light, string? saveTo = null)
     {
         float s = dpi / 96f;
         int H = tb.Height;
@@ -204,16 +214,16 @@ static unsafe class Strip
         var oldFont = SelectObject(dc, font);
 
         // layout, left to right in the order given (BuildItems already mirrored it for the right side)
-        var widths = new int[items.Count]; // item width (dot: pill; ring: ring + gap + label)
+        var widths = new int[items.Count]; // item width (dot: pill; usage: bar + gap + label)
         var textW = new int[items.Count];
         int textH = 0, W = pad;
         for (int i = 0; i < items.Count; i++)
         {
-            bool ring = IsGauge(items[i].Kind);
-            SelectObject(dc, ring ? font : boldFont);
+            bool bar = IsGauge(items[i].Kind);
+            SelectObject(dc, bar ? font : boldFont);
             GetTextExtentPoint32W(dc, items[i].Text, items[i].Text.Length, out var sz);
             textW[i] = sz.Cx; textH = Math.Max(textH, sz.Cy);
-            widths[i] = ring ? barW + (items[i].Text.Length > 0 ? gap + sz.Cx : 0) : Math.Max(dotD, sz.Cx + 2 * dotPad);
+            widths[i] = bar ? barW + (items[i].Text.Length > 0 ? gap + sz.Cx : 0) : Math.Max(dotD, sz.Cx + 2 * dotPad);
             W += widths[i] + (i < items.Count - 1 ? groupGap : 0);
         }
         W += pad;
@@ -253,7 +263,7 @@ static unsafe class Strip
             px[i] = 0x01000000u; // alpha 1 keeps the whole strip clickable
         }
 
-        // 2. shapes: colored dots/pills, usage ring
+        // 2. shapes: colored dots/pills, usage bars
         foreach (var (x0, w, item) in shapes)
         {
             if (IsGauge(item.Kind)) Bar(px, W, H, x0, barW, cy, dotD, item.Fill, item.Color == 0 ? fg : item.Color, fg);
@@ -290,6 +300,19 @@ static unsafe class Strip
             }
         }
 
+        if (saveTo != null)
+        {
+            // --render: raw premultiplied BGRA after an 8-byte header (width, height); docs/render.py makes the PNGs
+            using (var f = File.Create(saveTo))
+            {
+                f.Write(BitConverter.GetBytes(W)); f.Write(BitConverter.GetBytes(H));
+                f.Write(new ReadOnlySpan<byte>(px, W * H * 4));
+            }
+            SelectObject(dc, oldBmp); SelectObject(dc, oldFont);
+            DeleteObject(bmp); DeleteObject(font); DeleteObject(boldFont); DeleteDC(dc);
+            return;
+        }
+
         stripW = W; stripH = H;
         // right: just left of the tray. left: from the taskbar's left edge (with centered icons that side is empty;
         // use offsetX to clear the Widgets button if it is on)
@@ -305,6 +328,35 @@ static unsafe class Strip
         SelectObject(dc, oldBmp); SelectObject(dc, oldFont);
         DeleteObject(bmp); DeleteObject(font); DeleteObject(boldFont); DeleteDC(dc);
         regions = regs;
+    }
+
+    /// <summary>Hidden README helper: draws the strip for made-up values into a file, with no window and no real data.
+    /// ClaudeTaskbar.exe --render out.bgra [light] [left] [nopct] [dpi=144] [height=48] [five=62|reset] [week=41]
+    /// [needsInput=1] [planReady=1] [failed=1] [working=3] [done=12] [idle=2]</summary>
+    public static int RenderToFile(string[] args)
+    {
+        var set = args.Skip(2).Select(a => a.Split('=', 2)).ToDictionary(a => a[0], a => a.Length > 1 ? a[1] : "", StringComparer.OrdinalIgnoreCase);
+        string Get(string k, string d) => set.TryGetValue(k, out var v) ? v : d;
+        var counts = new Dictionary<Status, int>();
+        foreach (var st in Enum.GetValues<Status>()) counts[st] = int.TryParse(Get(StatusInfo.Key(st), "0"), out var n) ? n : 0;
+        Usage.Window Win(string key, TimeSpan left)
+        {
+            var v = Get(key, "");
+            if (v == "") return default;
+            var reset = DateTimeOffset.UtcNow + (v == "reset" ? -TimeSpan.FromMinutes(1) : left);
+            return new Usage.Window { Pct = v == "reset" ? 50 : double.Parse(v, System.Globalization.CultureInfo.InvariantCulture), Reset = reset };
+        }
+        var five = Win("five", TimeSpan.FromHours(2));
+        var week = Win("week", TimeSpan.FromDays(3));
+        bool light = set.ContainsKey("light");
+        var view = new View(light, set.ContainsKey("left"), Gauge: five.Pct != null || week.Pct != null, Sessions: true,
+            ShowPercent: !set.ContainsKey("nopct"), five, week, st => counts[st], []);
+        dpi = uint.TryParse(Get("dpi", "144"), out var d) ? d : 144;
+        int h = (int)MathF.Round((int.TryParse(Get("height", "48"), out var hh) ? hh : 48) * dpi / 96f);
+        var items = BuildItems(view);
+        if (items.Count == 0) return 1;
+        Render(items, new RECT { Left = 0, Top = 0, Right = 2000, Bottom = h }, new RECT { Left = 2000 }, light, saveTo: args[1]);
+        return 0;
     }
 
     static int R(float v) => (int)MathF.Round(v);

@@ -1,4 +1,4 @@
-// Claude Taskbar: session status dots + usage gauge docked in the Windows 11 taskbar.
+// Claude Taskbar: session status dots + usage bars docked in the Windows 11 taskbar.
 // One thread, event-driven: it sleeps in MsgWaitForMultipleObjects until a watched folder changes, the mouse
 // touches the strip, or a one-shot timer fires. Reads local files only: no network, no tokens.
 using static ClaudeTaskbar.Native;
@@ -13,8 +13,9 @@ static unsafe class Program
     static readonly List<nint> watches = [];
     static bool watchingClaudeRoot;
 
-    static int Main()
+    static int Main(string[] args)
     {
+        if (args is ["--render", _, ..]) { SetProcessDpiAwarenessContext(-4); return Strip.RenderToFile(args); } // README pictures, no window
         CreateMutexW(0, 0, @"Local\ClaudeTaskbar.Singleton");
         if (GetLastError() == 183 /* ERROR_ALREADY_EXISTS */) return 0;
         SetProcessDpiAwarenessContext(-4); // per-monitor v2 (also in the manifest)
