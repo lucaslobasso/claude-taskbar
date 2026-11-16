@@ -10,6 +10,7 @@ static unsafe class Strip
 {
     public static nint Hwnd;
     public static uint TaskbarCreatedMsg;
+    static uint glanceMovedMsg; // "TaskbarGlance.Moved": the Taskbar Glance strip changed size or visibility
     public static bool Fullscreen;
 
     const int GaugeKind = 100; // 100 = 5-hour bar, 101 = weekly bar
@@ -39,6 +40,7 @@ static unsafe class Strip
         Hwnd = CreateWindowExW(WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST, "ClaudeTaskbarStrip", "Claude Taskbar", WS_POPUP, 0, 0, 1, 1, 0, 0, inst, 0);
         if (Hwnd == 0) Log.Write($"CreateWindowEx failed: {Marshal.GetLastPInvokeError()}");
         TaskbarCreatedMsg = RegisterWindowMessageW("TaskbarCreated");
+        glanceMovedMsg = RegisterWindowMessageW("TaskbarGlance.Moved");
         hookFg = SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, 0, &OnWinEvent, 0, 0, WINEVENT_OUTOFCONTEXT | 0x2 /* SKIPOWNPROCESS */);
         AttachTaskbar();
         TrackForeground(GetForegroundWindow());
@@ -320,6 +322,12 @@ static unsafe class Strip
         // right: just left of the tray. left: from the taskbar's left edge (with centered icons that side is empty;
         // use offsetX to clear the Widgets button if it is on)
         stripX = Settings.Left ? tb.Left + R(8 * s) + R(Settings.OffsetX * s) : tr.Left - W - R(Settings.OffsetX * s) - R(2 * s);
+        // Taskbar Glance (weather/calendar strip) keeps the anchored edge; this strip steps outward past it when both are on the same side
+        if (GlanceRect() is { } gr)
+        {
+            if (Settings.Left && gr.Left < (tb.Left + tb.Right) / 2) stripX = Math.Max(stripX, gr.Right + R(6 * s));
+            else if (!Settings.Left && gr.Left >= (tb.Left + tb.Right) / 2) stripX = Math.Min(stripX, gr.Left - W - R(6 * s));
+        }
         stripY = tb.Top;
         var dst = new POINT { X = stripX, Y = stripY };
         var size = new SIZE { Cx = W, Cy = H };
@@ -360,6 +368,14 @@ static unsafe class Strip
         if (items.Count == 0) return 1;
         Render(items, new RECT { Left = 0, Top = 0, Right = 2000, Bottom = h }, new RECT { Left = 2000 }, light, saveTo: args[1]);
         return 0;
+    }
+
+    /// <summary>Where the Taskbar Glance strip is, if it runs and is showing.</summary>
+    static RECT? GlanceRect()
+    {
+        var g = FindWindowW("TaskbarGlanceStrip", null);
+        if (g == 0 || IsWindowVisible(g) == 0 || GetWindowRect(g, out var r) == 0) return null;
+        return r;
     }
 
     static int R(float v) => (int)MathF.Round(v);
@@ -525,6 +541,7 @@ static unsafe class Strip
                     PostQuitMessage(0);
                     return 0;
             }
+            if (msg == glanceMovedMsg && msg != 0) { Refresh(force: true); return 0; } // re-dock beside Taskbar Glance
             if (msg == TaskbarCreatedMsg && msg != 0) // Explorer restarted
             {
                 taskbar = 0; AttachTaskbar(); Refresh(force: true);

@@ -126,6 +126,7 @@ Run the one-line install again; it replaces the exe and keeps your settings. Fro
 - **The usage bars are missing.** No usage snapshot yet: check that `claude plugin list` shows `taskbar-usage@claude-taskbar`, then let a session do some work. See [Usage data](#usage-data).
 - **Windows SmartScreen warns about the exe.** It isn't code-signed. The one-line install checks the release's SHA-256 and unblocks the file; you can also build it yourself from source.
 - **No toasts.** Windows Do Not Disturb sends them straight to the notification center.
+- **Next to Taskbar Glance** (weather/calendar strip): it takes the anchored edge and this strip docks just outside it automatically; no `offsetX` needed.
 - **With `position: "left"`, it overlaps the Widgets button.** Raise `offsetX`, or turn Widgets off (Settings → Personalization → Taskbar).
 - **A click opens a plain terminal instead of Claude.** Set `launchCommand`, or install [Claude Launcher](https://github.com/lucaslobasso/claude-launcher).
 
