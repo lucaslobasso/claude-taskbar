@@ -2,6 +2,14 @@
 
 All notable changes to this project. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.1.1] - 2026-11-16
+
+### Changed
+- When the 5-hour window has reset and no new session has started yet, the 5-hour bar and its percentage are hidden instead of showing an empty bar with "–". They come back with the first reading of the next window. The tooltip still says "reset · waiting for fresh data".
+
+### Fixed
+- The release workflow failed for normal (non-pre-release) tags; 1.1.0 was published by hand.
+
 ## [1.1.0] - 2026-11-16
 
 ### Added
@@ -24,5 +32,6 @@ All notable changes to this project. The format follows [Keep a Changelog](https
 ### Added
 - First release: status dots with counts (needs input, plan ready, failed, working, done, idle), 5-hour and weekly usage bars, tooltips, notifications, left/right position, hide when Claude is closed, the taskbar-usage plugin.
 
+[1.1.1]: https://github.com/lucaslobasso/claude-taskbar/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/lucaslobasso/claude-taskbar/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/lucaslobasso/claude-taskbar/releases/tag/v1.0.0

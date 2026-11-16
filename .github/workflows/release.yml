@@ -36,5 +36,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $pre = if ('${{ github.ref_name }}' -match '-') { '--prerelease' } else { '' }
-          gh release create '${{ github.ref_name }}' out/ClaudeTaskbar.exe out/ClaudeTaskbar.exe.sha256 --title '${{ github.ref_name }}' --notes-file notes.md $pre
+          $releaseArgs = @('${{ github.ref_name }}', 'out/ClaudeTaskbar.exe', 'out/ClaudeTaskbar.exe.sha256', '--title', '${{ github.ref_name }}', '--notes-file', 'notes.md')
+          if ('${{ github.ref_name }}' -match '-') { $releaseArgs += '--prerelease' } # an empty '' argument would be read as a file
+          gh release create @releaseArgs
