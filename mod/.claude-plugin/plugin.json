@@ -1,7 +1,10 @@
 {
   "name": "taskbar-usage",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Writes the 5-hour and weekly usage to ~/.claude/taskbar/usage.json for Claude Taskbar. No network, no tokens.",
-  "author": { "name": "lucaslobasso" },
-  "license": "MIT"
+  "author": { "name": "Lucas Lobasso", "url": "https://github.com/lucaslobasso" },
+  "homepage": "https://github.com/lucaslobasso/claude-taskbar",
+  "repository": "https://github.com/lucaslobasso/claude-taskbar",
+  "license": "MIT",
+  "keywords": ["usage", "taskbar", "windows"]
 }

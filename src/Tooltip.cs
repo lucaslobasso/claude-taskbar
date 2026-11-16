@@ -71,7 +71,7 @@ static unsafe class Tooltip
         }
         if (!Usage.HasData)
         {
-            lines.Add(new Line(Kind.Note, ["No usage data yet: it updates while a Claude Code status line is on screen."]));
+            lines.Add(new Line(Kind.Note, ["No usage data yet: it updates while Claude Code runs (taskbar-usage plugin)."]));
             return;
         }
         lines.Add(new Line(Kind.Header, ["Usage limits"]));

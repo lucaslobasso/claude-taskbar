@@ -1,19 +1,9 @@
 <#
 .SYNOPSIS
-  Stops Claude Taskbar, removes the autostart entry and the exe. -Purge also deletes settings, usage snapshot and log.
+  Stops Claude Taskbar, removes the autostart entry, the exe and the taskbar-usage plugin.
+.PARAMETER Purge
+  Also delete settings (taskbar.json), the usage snapshot and the log.
 #>
 param([switch]$Purge)
-$claudeDir = if ($env:CLAUDE_CONFIG_DIR) { $env:CLAUDE_CONFIG_DIR } else { Join-Path $HOME '.claude' }
-$dest = Join-Path $claudeDir 'taskbar'
-
-if (Get-Command claude -ErrorAction SilentlyContinue) {
-  claude plugin uninstall taskbar-usage@taskbar-usage --scope user 2>&1 | Out-Null
-  claude plugin marketplace remove taskbar-usage 2>&1 | Out-Null
-}
-Remove-Item (Join-Path $dest 'mod') -Recurse -Force -ErrorAction SilentlyContinue
-Get-Process ClaudeTaskbar -ErrorAction SilentlyContinue | Stop-Process -Force
-Remove-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name ClaudeTaskbar -ErrorAction SilentlyContinue
-Start-Sleep -Milliseconds 300
-if ($Purge) { Remove-Item $dest -Recurse -Force -ErrorAction SilentlyContinue }
-else { Remove-Item (Join-Path $dest 'ClaudeTaskbar.exe') -Force -ErrorAction SilentlyContinue }
-Write-Host 'Claude Taskbar removed.' -ForegroundColor Green
+. (Join-Path $PSScriptRoot 'install-lib.ps1')
+Uninstall-Taskbar -Purge:$Purge

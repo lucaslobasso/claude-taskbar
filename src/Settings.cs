@@ -15,7 +15,9 @@ static class Paths
     public static readonly string Jobs = Path.Combine(Claude, "jobs");
     public static readonly string SettingsFile = Path.Combine(App, "taskbar.json");
     public static readonly string UsageFile = Path.Combine(App, "usage.json");
-    public static readonly string LauncherExe = Path.Combine(Claude, "launcher", "ClaudeLauncher.exe");
+    // Claude Launcher installs under %USERPROFILE%\.claude\launcher even when CLAUDE_CONFIG_DIR points elsewhere
+    public static string LauncherExe => new[] { Path.Combine(Claude, "launcher", "ClaudeLauncher.exe"), Path.Combine(Home, ".claude", "launcher", "ClaudeLauncher.exe") }
+        .FirstOrDefault(File.Exists) ?? Path.Combine(Home, ".claude", "launcher", "ClaudeLauncher.exe");
     public static readonly string ClaudeExe = Path.Combine(Home, ".local", "bin", "claude.exe");
 }
 
