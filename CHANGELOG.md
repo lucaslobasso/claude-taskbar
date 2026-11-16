@@ -2,6 +2,11 @@
 
 All notable changes to this project. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] - 2026-11-16
+
+### Added
+- Works next to [Taskbar Glance](https://github.com/lucaslobasso/taskbar-glance) (weather and calendar strip). Glance keeps the anchored edge (the left edge or next to the tray) and this strip docks just outward of it, so they never overlap. It moves back by itself when Glance hides or exits. Nothing changes if Glance is not running.
+
 ## [1.1.1] - 2026-11-16
 
 ### Changed
