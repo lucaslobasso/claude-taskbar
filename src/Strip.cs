@@ -147,6 +147,9 @@ static unsafe class Strip
             {
                 if (w.Pct == null) return;
                 double? p = Usage.Current(w);
+                // A 5-hour window that has reset has no session behind it yet: hide the bar and its percentage
+                // until the first reading of the next window (the weekly bar keeps its "–" placeholder).
+                if (p == null && kind == GaugeKind) return;
                 uint col = p is >= 90 ? 0xE5534Bu : p is >= 70 ? 0xE8B04Bu : 0u;
                 string text = !v.ShowPercent ? "" : p is { } pv ? $"{Math.Round(pv):0}%" : "–";
                 items.Add(new Item(kind, text, col, Math.Clamp((p ?? 0) / 100.0, 0, 1)));

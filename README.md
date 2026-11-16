@@ -75,7 +75,7 @@ The strip reads `~/.claude/taskbar/usage.json`, which a small Claude Code plugin
 
 Every open session reports the numbers from its own last request, so idle sessions carry old, lower numbers. Usage within a window only goes up, so the plugin merges readings instead of overwriting them: the newest window wins, and within a window the highest percentage wins. It writes only when that result changes.
 
-The snapshot refreshes while a Claude Code session is working. The countdowns stay exact anyway, because they are computed from the stored reset times. After a reset, the bar shows "–" until fresh data arrives.
+The snapshot refreshes while a Claude Code session is working. The countdowns stay exact anyway, because they are computed from the stored reset times. After a reset, the 5-hour bar is hidden until the next session brings fresh data; the weekly bar shows "–" meanwhile.
 
 ## Settings
 
@@ -108,7 +108,7 @@ Right-click the strip for the common ones, or edit `~/.claude/taskbar/taskbar.js
 | Usage at 93% (red) and 74% (amber) | <img src="docs/usage-high.png" alt="Red 5-hour bar at 93%, amber weekly bar at 74%" width="400"> |
 | `showUsagePercent: false` | <img src="docs/usage-no-percent.png" alt="Usage bars without the percentages" width="400"> |
 | `whenClaudeClosed: "usageOnly"`, with Claude closed | <img src="docs/usage-only.png" alt="Only the two usage bars" width="400"> |
-| A window that just reset, before fresh data | <img src="docs/usage-reset.png" alt="The 5-hour bar empty with a dash" width="400"> |
+| The 5-hour window has reset and no new session has started: its bar is hidden until the next reading | <img src="docs/usage-reset.png" alt="Only the weekly bar is shown, next to the done dot" width="400"> |
 
 ## Update
 
