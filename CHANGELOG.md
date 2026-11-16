@@ -7,6 +7,9 @@ All notable changes to this project. The format follows [Keep a Changelog](https
 ### Changed
 - When the 5-hour window has reset and no new session has started yet, the 5-hour bar and its percentage are hidden instead of showing an empty bar with "–". They come back with the first reading of the next window. The tooltip still says "reset · waiting for fresh data".
 
+### Fixed
+- The release workflow failed for normal (non-pre-release) tags; 1.1.0 was published by hand.
+
 ## [1.1.0] - 2026-11-16
 
 ### Added
