@@ -2,6 +2,18 @@
 
 All notable changes to this project. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.3.0] - 2026-11-17
+
+Updates without the command line.
+
+### Added
+- **Check for updates** in the right-click menu, which also shows the version you have. If a newer release exists it asks, downloads the exe, checks it against the release's SHA-256, swaps it in and restarts the strip, then updates the usage plugin with `claude plugin update`. Settings are kept.
+
+### Changed
+- "No network" now has one exception: the update check, which runs only when you click it. There is still no background request of any kind, and still no tokens.
+- A release is published automatically when a merge to `main` carries a version that has no release yet; pushing a tag by hand is no longer needed.
+- A copy started with `CLAUDE_CONFIG_DIR` set (tests) can run next to the installed one.
+
 ## [1.2.0] - 2026-11-16
 
 ### Added

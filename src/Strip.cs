@@ -8,6 +8,7 @@ namespace ClaudeTaskbar;
 
 static unsafe class Strip
 {
+    public const uint WM_UPDATE = WM_APP + 2;    // posted by the update check or download (Notify uses WM_APP + 1)
     public static nint Hwnd;
     public static uint TaskbarCreatedMsg;
     static uint glanceMovedMsg; // "TaskbarGlance.Moved": the Taskbar Glance strip changed size or visibility
@@ -453,7 +454,7 @@ static unsafe class Strip
 
     static void Menu()
     {
-        const int Open = 1, Refresh_ = 2, Notif = 10, Hide_ = 20, UsageOnly = 21, Show_ = 22, Gauge = 30, GaugePct = 31, Auto = 40, Edit = 50,
+        const int Open = 1, Refresh_ = 2, CheckUpdate = 5, Notif = 10, Hide_ = 20, UsageOnly = 21, Show_ = 22, Gauge = 30, GaugePct = 31, Auto = 40, Edit = 50,
             PosLeft = 60, PosRight = 61, Exit = 99;
         var pos = CreatePopupMenu();
         AppendMenuW(pos, Settings.Left ? MF_CHECKED : 0, PosLeft, "Left side (usage on the left)");
@@ -474,6 +475,7 @@ static unsafe class Strip
         AppendMenuW(m, Shell.Autostart ? MF_CHECKED : 0, Auto, "Start with Windows");
         AppendMenuW(m, 0, Edit, "Open settings file");
         AppendMenuW(m, MF_SEPARATOR, 0, null);
+        AppendMenuW(m, Update.Busy ? MF_GRAYED : 0, CheckUpdate, Update.Busy ? "Checking for updates..." : $"Check for updates (you have {Update.Current})");
         AppendMenuW(m, 0, Exit, "Exit");
         GetCursorPos(out var pt);
         SetForegroundWindow(Hwnd);
@@ -484,6 +486,7 @@ static unsafe class Strip
         {
             case Open: Shell.OpenClaude(); break;
             case Refresh_: Program.Reload(force: true); break;
+            case CheckUpdate: Update.Check(); break;
             case Notif: Settings.Notifications = !Settings.Notifications; Settings.Save(); break;
             case Gauge: Settings.ShowUsage = !Settings.ShowUsage; Settings.Save(); Refresh(); break;
             case GaugePct: Settings.ShowUsagePercent = !Settings.ShowUsagePercent; Settings.Save(); Refresh(); break;
@@ -529,6 +532,7 @@ static unsafe class Strip
                 case WM_RBUTTONUP: Tooltip.Hide(); Menu(); return 0;
                 case WM_TIMER: Program.OnTimer((nuint)w); return 0;
                 case Notify.CallbackMsg: Notify.OnCallback(l); return 0;
+                case WM_UPDATE: Update.OnDone(); return 0;
                 case WM_DISPLAYCHANGE:
                 case WM_DPICHANGED:
                 case WM_SETTINGCHANGE:

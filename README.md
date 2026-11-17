@@ -32,11 +32,12 @@ A tiny strip in the Windows 11 taskbar that shows your [Claude Code](https://cod
 - **Tooltips:** hover a dot for each session's name and a shortened last message. Hover a usage bar for 5-hour and weekly usage, with live countdowns to each reset.
 - **Usage bars:** thin vertical bars as tall as the dots, filling from the bottom, with the percentage beside them. Amber from 70%, red from 90%.
 - **Notifications** (optional): a Windows toast when a session needs input, has a plan ready, finishes or fails. Click it to open Claude.
-- **Click** the strip to focus your Claude window (or start Claude). **Right-click** for options.
+- **Click** the strip to focus your Claude window (or start Claude). **Right-click** for options and to check for updates.
 
 ### Light by design
 
 - **Costs no tokens.** It only reads local files that Claude Code already writes. It never calls an API, never runs `claude`, and never talks to a session.
+- **No network.** The one exception is yours to trigger: **Check for updates** in the right-click menu asks GitHub for the latest release, and only when you click it.
 - **Tiny.** A ~1.6 MB native exe (.NET Native AOT, raw Win32, no UI framework): about 3.6 MB private memory, under 1 MB working set when idle.
 - **Idle means idle.** It sleeps until a watched folder changes or you hover it. No polling loop; a once-a-minute check runs only while Claude is open, to catch sessions that crashed.
 - **Gets out of the way.** By default the strip disappears when Claude isn't running, and it hides while a full-screen app is in front.
@@ -112,7 +113,9 @@ Right-click the strip for the common ones, or edit `~/.claude/taskbar/taskbar.js
 
 ## Update
 
-Run the one-line install again; it replaces the exe and keeps your settings. From a clone: `git pull`, then `.\install.ps1`. See [CHANGELOG.md](CHANGELOG.md).
+Right-click the strip → **Check for updates**. If there is a newer release it asks, downloads it, checks it against the release's SHA-256, replaces the exe and restarts; your settings stay. It then brings the usage plugin up to date with `claude plugin update` (this is the only time the app runs `claude`; it costs no tokens). It never checks on its own.
+
+Versions before 1.3 have no such entry: run the one-line install again (it also replaces the exe and keeps your settings). From a clone: `git pull`, then `.\install.ps1`. See [CHANGELOG.md](CHANGELOG.md).
 
 ## How it works
 
@@ -184,7 +187,7 @@ python docs/render.py                                        # redraw the README
 
 - Test against a fake `CLAUDE_CONFIG_DIR`, never your real `~/.claude/jobs` (see [CLAUDE.md](CLAUDE.md)).
 - `ClaudeTaskbar.exe --render out.bgra five=62 week=41 working=3 [left] [light] [nopct] ...` draws the strip for made-up values without opening a window; `docs/render.py` turns that into the PNGs above.
-- A tag `v*` builds the exe in CI and publishes a GitHub release with its SHA-256, which the one-line install picks up.
+- Releases publish themselves: when `main` carries a `<Version>` (in `src/ClaudeTaskbar.csproj`) that has no release yet, CI builds the exe and publishes it with its SHA-256, which the one-line install and **Check for updates** pick up. So a pull request that bumps the version and adds its `CHANGELOG.md` section is a release once merged; any other merge publishes nothing.
 
 ## License
 

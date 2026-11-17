@@ -1,6 +1,7 @@
 // Claude Taskbar: session status dots + usage bars docked in the Windows 11 taskbar.
 // One thread, event-driven: it sleeps in MsgWaitForMultipleObjects until a watched folder changes, the mouse
-// touches the strip, or a one-shot timer fires. Reads local files only: no network, no tokens.
+// touches the strip, or a one-shot timer fires. Reads local files only: no tokens, and no network except when the
+// user clicks "Check for updates" (Update.cs).
 using static ClaudeTaskbar.Native;
 
 namespace ClaudeTaskbar;
@@ -12,12 +13,15 @@ static unsafe class Program
 
     static readonly List<nint> watches = [];
     static bool watchingClaudeRoot;
+    static nint instance;
 
     static int Main(string[] args)
     {
         if (args is ["--render", _, ..]) { SetProcessDpiAwarenessContext(-4); return Strip.RenderToFile(args); } // README pictures, no window
-        CreateMutexW(0, 0, @"Local\ClaudeTaskbar.Singleton");
+        // a copy pointed at another config folder (CLAUDE_CONFIG_DIR: tests) may run next to the installed one
+        instance = CreateMutexW(0, 0, @"Local\ClaudeTaskbar." + (Environment.GetEnvironmentVariable("CLAUDE_CONFIG_DIR") is { Length: > 0 } ? "Custom" : "Singleton"));
         if (GetLastError() == 183 /* ERROR_ALREADY_EXISTS */) return 0;
+        Update.Cleanup();
         SetProcessDpiAwarenessContext(-4); // per-monitor v2 (also in the manifest)
         CoInitializeEx(0, 0x2);            // STA, for the window property store lookup
 
@@ -33,6 +37,7 @@ static unsafe class Program
         ArmWatches();
         ScheduleTrim();
         if (Environment.GetEnvironmentVariable("CLAUDE_TASKBAR_DEBUG_TIP") is { Length: > 0 } tip) Strip.DebugTip(tip);
+        if (Environment.GetEnvironmentVariable("CLAUDE_TASKBAR_DEBUG_OPEN") == "update") Update.Check();
 
         var handles = new nint[64];
         while (true)
@@ -60,6 +65,13 @@ static unsafe class Program
             }
             else ArmWatches(); // WAIT_FAILED: a handle went bad
         }
+    }
+
+    /// <summary>Lets the next copy start while this one is still closing (the restart after an update).</summary>
+    public static void ReleaseInstance()
+    {
+        if (instance != 0) CloseHandle(instance);
+        instance = 0;
     }
 
     static void CloseWatches()
@@ -138,6 +150,7 @@ static unsafe class Program
             case T_TRIM:
                 KillTimer(Strip.Hwnd, T_TRIM);
                 if (Tooltip.Visible) break;
+                Update.Cleanup(); // the exe an update replaced was still closing at our start
                 GC.Collect();
                 SetProcessWorkingSetSize(GetCurrentProcess(), -1, -1);
                 break;
