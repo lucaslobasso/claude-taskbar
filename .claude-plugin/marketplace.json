@@ -10,7 +10,7 @@
       "name": "taskbar-usage",
       "source": "./mod",
       "description": "Feeds the usage bars of Claude Taskbar: writes the 5-hour and weekly usage to ~/.claude/taskbar/usage.json. No network, no tokens.",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "category": "productivity"
     }
   ]
