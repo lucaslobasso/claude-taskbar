@@ -1,24 +1,37 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { merge, pickWindow } from '../hooks/merge.ts'
+import { merge, pickWindow, STALE_S } from '../hooks/merge.ts'
 
 const NOW = 1_800_000_000
 const iso = (s: number) => new Date(s * 1000).toISOString()
 
-test('maps readings to the file shape (epoch seconds)', () => {
+test('maps readings to the file shape (epoch seconds, with the time of the reading)', () => {
   const out = merge(null, [{ kind: 'five_hour', percentUsed: 42, resetsAt: iso(NOW + 3600) }], NOW)
-  assert.deepEqual(out, { five_hour: { used_percentage: 42, resets_at: NOW + 3600 }, seven_day: null })
+  assert.deepEqual(out, { five_hour: { used_percentage: 42, resets_at: NOW + 3600, at: NOW }, seven_day: null })
 })
 
-test('same window: the highest percentage wins', () => {
-  const old = { five_hour: { used_percentage: 80, resets_at: NOW + 3600 }, seven_day: null }
+test('same window: a fresh higher reading wins; a lower one is ignored while the stored one is recent', () => {
+  const old = { five_hour: { used_percentage: 80, resets_at: NOW + 3600, at: NOW - 60 }, seven_day: null }
   assert.equal(merge(old, [{ kind: 'five_hour', percentUsed: 43, resetsAt: iso(NOW + 3601) }], NOW), null)
   const up = merge(old, [{ kind: 'five_hour', percentUsed: 85, resetsAt: iso(NOW + 3600) }], NOW)
   assert.equal(up?.five_hour?.used_percentage, 85)
 })
 
+test('same window: a lower reading wins once the stored one is older than 15 minutes (usage can go down)', () => {
+  const old = { seven_day: { used_percentage: 79, resets_at: NOW + 50_000, at: NOW - STALE_S - 1 }, five_hour: null }
+  const out = merge(old, [{ kind: 'seven_day', percentUsed: 61, resetsAt: iso(NOW + 50_000) }], NOW)
+  assert.equal(out?.seven_day?.used_percentage, 61)
+  assert.equal(out?.seven_day?.at, NOW)
+})
+
+test('a file from 0.2.0 (no reading times) takes the next reading, so a stuck peak clears on upgrade', () => {
+  const old = { seven_day: { used_percentage: 79, resets_at: NOW + 50_000 }, five_hour: null }
+  const out = merge(old, [{ kind: 'seven_day', percentUsed: 61, resetsAt: iso(NOW + 50_000) }], NOW)
+  assert.equal(out?.seven_day?.used_percentage, 61)
+})
+
 test('a newer window replaces an older one, even with a lower percentage', () => {
-  const old = { five_hour: { used_percentage: 90, resets_at: NOW + 100 }, seven_day: null }
+  const old = { five_hour: { used_percentage: 90, resets_at: NOW + 100, at: NOW }, seven_day: null }
   const out = merge(old, [{ kind: 'five_hour', percentUsed: 3, resetsAt: iso(NOW + 18000) }], NOW)
   assert.equal(out?.five_hour?.used_percentage, 3)
 })
