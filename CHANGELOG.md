@@ -6,6 +6,9 @@ All notable changes to this project. The format follows [Keep a Changelog](https
 
 Usage plugin `taskbar-usage` 0.2.1 only (the exe is unchanged). Get it with `claude plugin update taskbar-usage@claude-taskbar`.
 
+### Added
+- A **Claude Taskbar** Start menu shortcut, made by the installer and removed by the uninstaller, to reopen the strip by itself after closing it (search "Claude Taskbar"). Installer change only; the exe is unchanged.
+
 ### Fixed
 - The weekly (and 5-hour) bar could stay above the number on claude.ai's Usage page: within a window the plugin only ever let the percentage go up, so a drop mid-window (a limit adjustment or correction) stayed stuck at the old peak until the reset. A lower reading is now accepted once the stored one is older than 15 minutes. A stuck value from 0.2.0 clears on the first reading after the update.
 
