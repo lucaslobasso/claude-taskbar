@@ -10,9 +10,14 @@ An icon, and a way back after closing the strip.
 - An app icon: Claude's icon on a blue tile, shown on the exe and the Start menu shortcut (`src/app.ico`, made by `assets/make_icon.py`).
 - A **Claude Taskbar** Start menu shortcut, made by the installer and removed by the uninstaller, to reopen the strip by itself after closing it (search "Claude Taskbar").
 
+### Fixed
+- The strip could vanish behind the taskbar and stay hidden until its next redraw: when Windows dropped its owner, the taskbar was drawn over it after opening Start or clicking the taskbar. The strip now re-owns itself and moves back on top on every foreground change.
+- Switching displays (for example "Second screen only") left the strip where the old taskbar was; it now re-attaches to the taskbar once the display change has settled.
+- Opening the strip while it is already running (the Start menu shortcut) did nothing; it now brings the running strip back.
+
 Also in this release: usage plugin `taskbar-usage` 0.2.1, already out through `claude plugin update taskbar-usage@claude-taskbar`.
 
-### Fixed
+### Fixed (usage plugin 0.2.1)
 - The weekly (and 5-hour) bar could stay above the number on claude.ai's Usage page: within a window the plugin only ever let the percentage go up, so a drop mid-window (a limit adjustment or correction) stayed stuck at the old peak until the reset. A lower reading is now accepted once the stored one is older than 15 minutes. A stuck value from 0.2.0 clears on the first reading after the update.
 
 ## [1.3.0] - 2026-11-17
