@@ -56,7 +56,7 @@ A tiny strip in the Windows 11 taskbar that shows your [Claude Code](https://cod
 irm https://raw.githubusercontent.com/lucaslobasso/claude-taskbar/main/bootstrap.ps1 | iex
 ```
 
-It downloads `ClaudeTaskbar.exe` from the latest release, checks its SHA-256, installs it to `~/.claude/taskbar`, starts it with Windows, and installs the `taskbar-usage` plugin into Claude Code. Read [`bootstrap.ps1`](bootstrap.ps1) first if you like; it's short. Without autostart:
+It downloads `ClaudeTaskbar.exe` from the latest release, checks its SHA-256, installs it to `~/.claude/taskbar`, starts it with Windows, and installs the `taskbar-usage` plugin into Claude Code. Read [`bootstrap.ps1`](bootstrap.ps1) first if you like; it's short. It also adds a **Claude Taskbar** Start menu shortcut, so a closed strip reopens from Search. Without autostart:
 
 ```powershell
 & ([scriptblock]::Create((irm https://raw.githubusercontent.com/lucaslobasso/claude-taskbar/main/bootstrap.ps1))) -NoAutostart

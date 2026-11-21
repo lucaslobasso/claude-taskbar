@@ -11,6 +11,7 @@ static unsafe class Strip
     public const uint WM_UPDATE = WM_APP + 2;    // posted by the update check or download (Notify uses WM_APP + 1)
     public static nint Hwnd;
     public static uint TaskbarCreatedMsg;
+    static uint showMsg; // "ClaudeTaskbar.Show": posted by a second launch (Start menu shortcut) to bring this strip back
     static uint glanceMovedMsg; // "TaskbarGlance.Moved": the Taskbar Glance strip changed size or visibility
     public static bool Fullscreen;
 
@@ -41,10 +42,25 @@ static unsafe class Strip
         Hwnd = CreateWindowExW(WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TOPMOST, "ClaudeTaskbarStrip", "Claude Taskbar", WS_POPUP, 0, 0, 1, 1, 0, 0, inst, 0);
         if (Hwnd == 0) Log.Write($"CreateWindowEx failed: {Marshal.GetLastPInvokeError()}");
         TaskbarCreatedMsg = RegisterWindowMessageW("TaskbarCreated");
+        showMsg = RegisterWindowMessageW("ClaudeTaskbar.Show");
         glanceMovedMsg = RegisterWindowMessageW("TaskbarGlance.Moved");
         hookFg = SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, 0, &OnWinEvent, 0, 0, WINEVENT_OUTOFCONTEXT | 0x2 /* SKIPOWNPROCESS */);
         AttachTaskbar();
         TrackForeground(GetForegroundWindow());
+    }
+
+    /// <summary>Starts over from the taskbar: after a display change, an Explorer restart or a second launch.</summary>
+    public static void Reattach()
+    {
+        taskbar = 0; AttachTaskbar();
+        Fullscreen = IsFullscreen();
+        Refresh(force: true);
+    }
+
+    /// <summary>Back to the top of the topmost band, above the taskbar (no redraw).</summary>
+    static void Raise()
+    {
+        if (visible) SetWindowPos(Hwnd, -1 /* HWND_TOPMOST */, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
     }
 
     /// <summary>Finds the taskbar and tray, makes the taskbar our owner and follows its tray's size changes.</summary>
@@ -60,6 +76,7 @@ static unsafe class Strip
             GetWindowThreadProcessId(taskbar, out var pid);
             hookLoc = SetWinEventHook(EVENT_OBJECT_LOCATIONCHANGE, EVENT_OBJECT_LOCATIONCHANGE, 0, &OnWinEvent, pid, 0, WINEVENT_OUTOFCONTEXT);
         }
+        else if (GetWindow(Hwnd, 4 /* GW_OWNER */) != taskbar) SetWindowLongPtrW(Hwnd, GWLP_HWNDPARENT, taskbar); // owner was dropped: re-own
         tray = FindWindowExW(taskbar, 0, "TrayNotifyWnd", null);
         return true;
     }
@@ -78,6 +95,8 @@ static unsafe class Strip
             TrackForeground(hwnd);
             var fs = IsFullscreen();
             if (fs != Fullscreen) { Fullscreen = fs; Refresh(); }
+            else Raise();
+            SetTimer(Hwnd, Program.T_REDOCK, 400, 0); // again once the Start menu or taskbar animation has finished
             if (!Sessions.ClaudeOpen) SetTimer(Hwnd, Program.T_DEBOUNCE, 600, 0); // a terminal may have just opened: look for Claude clients
         }
     }
@@ -176,7 +195,7 @@ static unsafe class Strip
     /// <summary>Re-reads position and content; redraws only if something visible changed.</summary>
     public static void Refresh(bool force = false)
     {
-        if (taskbar == 0 || IsWindow(taskbar) == 0 || tray == 0 || IsWindow(tray) == 0) AttachTaskbar();
+        AttachTaskbar(); // two lookups; also re-finds a replaced taskbar and re-owns the strip
         bool light = LightTheme();
         var items = BuildItems(LiveView(light));
         if (taskbar == 0 || Fullscreen || items.Count == 0) { Hide(); return; }
@@ -189,7 +208,7 @@ static unsafe class Strip
 
         var sig = $"{tb.Left},{tb.Top},{tb.Right},{tb.Bottom},{tr.Left},{dpi},{light},{Settings.OffsetX},{Settings.Left}|" +
                   string.Join(";", items.Select(i => $"{i.Kind}:{i.Text}:{i.Color}:{i.TextColor}:{i.Fill:0.000}"));
-        if (!force && sig == lastSig && visible) return;
+        if (!force && sig == lastSig && visible) { Raise(); return; }
         lastSig = sig;
 
         Render(items, tb, tr, light);
@@ -533,7 +552,8 @@ static unsafe class Strip
                 case WM_TIMER: Program.OnTimer((nuint)w); return 0;
                 case Notify.CallbackMsg: Notify.OnCallback(l); return 0;
                 case WM_UPDATE: Update.OnDone(); return 0;
-                case WM_DISPLAYCHANGE:
+                case WM_DISPLAYCHANGE: // e.g. "second screen only": the taskbar moves to another monitor a moment later
+                    Refresh(force: true); SetTimer(h, Program.T_SETTLE, 1500, 0); return 0;
                 case WM_DPICHANGED:
                 case WM_SETTINGCHANGE:
                     Refresh(force: true); return 0;
@@ -546,9 +566,10 @@ static unsafe class Strip
                     return 0;
             }
             if (msg == glanceMovedMsg && msg != 0) { Refresh(force: true); return 0; } // re-dock beside Taskbar Glance
+            if (msg == showMsg && msg != 0) { Reattach(); return 0; }
             if (msg == TaskbarCreatedMsg && msg != 0) // Explorer restarted
             {
-                taskbar = 0; AttachTaskbar(); Refresh(force: true);
+                Reattach();
                 return 0;
             }
         }

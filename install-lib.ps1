@@ -15,6 +15,20 @@ function Stop-Taskbar {
     Start-Sleep -Milliseconds 300
 }
 
+# Start menu shortcut, so the strip can be reopened by itself after it was closed (search "Claude Taskbar").
+function Set-StartMenuShortcut([string]$Exe) {
+    $lnk = Join-Path ([Environment]::GetFolderPath('Programs')) 'Claude Taskbar.lnk'
+    $s = (New-Object -ComObject WScript.Shell).CreateShortcut($lnk)
+    $s.TargetPath = $Exe
+    $s.WorkingDirectory = Split-Path $Exe
+    $s.IconLocation = "$Exe,0"
+    $s.Save()
+}
+
+function Remove-StartMenuShortcut {
+    Remove-Item (Join-Path ([Environment]::GetFolderPath('Programs')) 'Claude Taskbar.lnk') -Force -ErrorAction SilentlyContinue
+}
+
 # Copies the exe into place, sets autostart and starts it.
 function Install-TaskbarExe([string]$Source, [switch]$NoAutostart) {
     $dest = Get-TaskbarDir
@@ -24,6 +38,7 @@ function Install-TaskbarExe([string]$Source, [switch]$NoAutostart) {
     Copy-Item $Source $exe -Force
     if ($NoAutostart) { Remove-ItemProperty $RunKey -Name ClaudeTaskbar -ErrorAction SilentlyContinue }
     else { Set-ItemProperty $RunKey -Name ClaudeTaskbar -Value "`"$exe`"" }
+    Set-StartMenuShortcut $exe
     Start-Process $exe
     $size = [math]::Round((Get-Item $exe).Length / 1MB, 1)
     Write-Host "Installed $exe ($size MB) and started it." -ForegroundColor Green
@@ -68,6 +83,7 @@ function Uninstall-Taskbar([switch]$Purge) {
     }
     Stop-Taskbar
     Remove-ItemProperty $RunKey -Name ClaudeTaskbar -ErrorAction SilentlyContinue
+    Remove-StartMenuShortcut
     $dest = Get-TaskbarDir
     if ($Purge) { Remove-Item $dest -Recurse -Force -ErrorAction SilentlyContinue }
     else { Remove-Item (Join-Path $dest 'ClaudeTaskbar.exe') -Force -ErrorAction SilentlyContinue }
