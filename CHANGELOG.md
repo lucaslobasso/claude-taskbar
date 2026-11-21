@@ -2,6 +2,11 @@
 
 All notable changes to this project. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.4.1] - 2026-11-21
+
+### Fixed
+- The right-click menu showed behind the strip: it opened at the mouse, partly over the taskbar, which is drawn above every other window. It now opens just above the taskbar, like a tray menu.
+
 ## [1.4.0] - 2026-11-21
 
 An icon, and a way back after closing the strip.
