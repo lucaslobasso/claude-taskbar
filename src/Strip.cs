@@ -123,20 +123,28 @@ static unsafe class Strip
         if (followUp) SetTimer(Hwnd, Program.T_FSCHECK2, 700, 0);
     }
 
+    /// <summary>True when a fullscreen window covers the monitor the strip lives on (the taskbar's own monitor). Fullscreen
+    /// on another monitor does not count: the strip stays visible. Presentation mode (state 4) is the one session-wide exception.</summary>
     public static bool IsFullscreen()
     {
-        if (SHQueryUserNotificationState(out var s) == 0 && s is 2 or 3 or 4) return true; // busy, D3D fullscreen, presentation
-        // the shell state can lag or miss borderless fullscreen (Windows Terminal Alt+Enter): compare the window with its monitor
+        var state = SHQueryUserNotificationState(out var s) == 0 ? s : 0;
+        if (state == 4) return true; // presentation mode: session-wide, always hide
+        // the shell states 2/3 are session-wide too, and can lag or miss borderless fullscreen (Windows Terminal Alt+Enter):
+        // only count them when the foreground window is on the strip's monitor, then compare the window with that monitor
         var fg = GetForegroundWindow();
         if (fg == 0 || fg == Hwnd || fg == taskbar) return false;
         char* cls = stackalloc char[64];
         int n = GetClassNameW(fg, cls, 64);
         var name = new string(cls, 0, n);
         if (name is "Progman" or "WorkerW" or "Shell_TrayWnd" or "Shell_SecondaryTrayWnd") return false;
+        if (taskbar == 0) return false;
+        var stripMon = MonitorFromWindow(taskbar, 2);
+        var fgMon = MonitorFromWindow(fg, 2);
+        if (fgMon == 0 || fgMon != stripMon) return false; // fullscreen on another monitor: the strip stays
+        if (state is 2 or 3) return true; // busy, D3D fullscreen
         if (GetWindowRect(fg, out var r) == 0) return false;
         var mi = new MONITORINFO { cbSize = (uint)sizeof(MONITORINFO) };
-        var mon = MonitorFromWindow(fg, 2);
-        if (mon == 0 || GetMonitorInfoW(mon, &mi) == 0) return false;
+        if (GetMonitorInfoW(fgMon, &mi) == 0) return false;
         return r.Left <= mi.rcMonitor.Left && r.Top <= mi.rcMonitor.Top && r.Right >= mi.rcMonitor.Right && r.Bottom >= mi.rcMonitor.Bottom;
     }
 
